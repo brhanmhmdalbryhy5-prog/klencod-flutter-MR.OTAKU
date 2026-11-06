@@ -10,14 +10,26 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
+  # Supabase
   supabase_flutter: ^2.8.4
+
+  # Local storage
   shared_preferences: ^2.2.3
+  sqflite: ^2.4.2
+  path: ^1.9.1
+
+  # Media
   image_picker: ^1.0.0
-  flutter_local_notifications: ^17.2.2
-  workmanager: ^0.5.2
   cached_network_image: ^3.3.1
   video_player: ^2.8.6
   gal: 2.3.0
+
+  # Notifications and background tasks
+  flutter_local_notifications: ^17.2.2
+  workmanager: ^0.5.2
+
+  # Network
   http: ^1.2.1
 
 dependency_overrides:
