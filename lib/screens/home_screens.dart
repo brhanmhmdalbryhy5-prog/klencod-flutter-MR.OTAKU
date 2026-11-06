@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/colors.dart';
 import '../core/helpers.dart';
@@ -451,6 +452,27 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   int _tab = 0;
+  int _totalLikes = 0; // ✅ متغير جديد لعدد اللايكات
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTotalLikes(); // ✅ استدعاء الدالة عند فتح الصفحة
+  }
+
+  // ✅ دالة جلب اللايكات من Supabase
+  Future<void> _loadTotalLikes() async {
+    if (widget.data.currentAccountId == null) return;
+    try {
+      final likes = await Supabase.instance.client.rpc(
+        'get_user_total_likes', 
+        params: {'target_user_id': widget.data.currentAccountId}
+      );
+      if (mounted) setState(() => _totalLikes = likes as int);
+    } catch (e) {
+      debugPrint('Error loading likes: $e');
+    }
+  }
 
   Future<void> _pickAvatar() async {
     final picker = ImagePicker();
@@ -522,13 +544,19 @@ class _ProfilePageState extends State<ProfilePage> {
                   ]),
                   Text('ID: ${widget.data.currentAccountId} | ${widget.data.currentLevel}'),
                   const SizedBox(height: 8),
+                  
+                  // ✅ تعديل صف الإحصائيات لإضافة اللايكات
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     GestureDetector(onTap: () => setState(() => _tab = 0), child: _statTikTok('${myPosts.length}', 'منشورات')),
-                    Container(width: 1, height: 30, color: Colors.grey, margin: const EdgeInsets.symmetric(horizontal: 20)),
+                    Container(width: 1, height: 30, color: Colors.grey, margin: const EdgeInsets.symmetric(horizontal: 12)),
                     GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => FollowersPage(data: widget.data, showFollowers: true, accountId: widget.data.currentAccountId!))), child: _statTikTok('${widget.data.myFollowersCount}', 'متابع')),
-                    Container(width: 1, height: 30, color: Colors.grey, margin: const EdgeInsets.symmetric(horizontal: 20)),
+                    Container(width: 1, height: 30, color: Colors.grey, margin: const EdgeInsets.symmetric(horizontal: 12)),
                     GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => FollowersPage(data: widget.data, showFollowers: false, accountId: widget.data.currentAccountId!))), child: _statTikTok('${widget.data.myFollowingCount}', 'يتابع')),
+                    Container(width: 1, height: 30, color: Colors.grey, margin: const EdgeInsets.symmetric(horizontal: 12)),
+                    // ✅ عرض اللايكات
+                    _statTikTok('$_totalLikes', 'إعجاب'),
                   ]),
+
                   if (badge != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('${badge.icon} ${badge.name}')),
                 ]),
               ),
@@ -660,382 +688,4 @@ class _CreatePostPageState extends State<CreatePostPage> {
         SizedBox(width: 12),
         Expanded(child: Text('جاري النشر...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
       ]),
-      duration: const Duration(minutes: 5), behavior: SnackBarBehavior.floating, backgroundColor: AppColors.cardBlack,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: ThemeManager.instance.primaryColor.withOpacity(0.5))),
-    ));
-    try {
-      final error = await widget.data.addPost(content, image, videoFile: video);
-      messenger.hideCurrentSnackBar();
-      if (error == null) {
-        messenger.showSnackBar(SnackBar(
-          content: const Row(children: [Icon(Icons.check_circle, color: Colors.white), SizedBox(width: 8), Text('تم النشر بنجاح!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))]),
-          backgroundColor: Colors.green.shade700, behavior: SnackBarBehavior.floating, duration: const Duration(seconds: 2),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ));
-      } else {
-        messenger.showSnackBar(SnackBar(
-          content: Row(children: [const Icon(Icons.error, color: Colors.white), const SizedBox(width: 8), Expanded(child: Text(error, style: const TextStyle(color: Colors.white)))]),
-          backgroundColor: Colors.red.shade700, behavior: SnackBarBehavior.floating, duration: const Duration(seconds: 4),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ));
-      }
-    } catch (e) {
-      messenger.hideCurrentSnackBar();
-      messenger.showSnackBar(SnackBar(content: Text('❌ خطأ غير متوقع: $e'), backgroundColor: Colors.red.shade700, behavior: SnackBarBehavior.floating));
-    }
-  }
-
-  @override
-  void dispose() { textCtrl.dispose(); super.dispose(); }
-
-  @override
-  Widget build(BuildContext context) {
-    final canPostVideo = _remainingVideos > 0;
-    return Scaffold(
-      appBar: AppBar(title: const Text('نشر منشور')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(children: [
-          if (!_loadingInfo)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                gradient: canPostVideo ? LinearGradient(colors: [Colors.green.withOpacity(0.3), Colors.green.withOpacity(0.1)]) : LinearGradient(colors: [Colors.red.withOpacity(0.3), Colors.red.withOpacity(0.1)]),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: canPostVideo ? Colors.green : Colors.red),
-              ),
-              child: Row(children: [
-                Icon(canPostVideo ? Icons.videocam : Icons.block, color: canPostVideo ? Colors.green : Colors.red),
-                const SizedBox(width: 8),
-                Expanded(child: Text(canPostVideo ? 'متبقي لك $_remainingVideos فيديو من 5 هذا الشهر' : 'وصلت للحد الأقصى (5 فيديوهات). يتجدد الشهر القادم.', style: TextStyle(fontWeight: FontWeight.bold, color: canPostVideo ? Colors.green : Colors.red))),
-              ]),
-            ),
-          const SizedBox(height: 12),
-          TextField(controller: textCtrl, maxLines: 5, decoration: const InputDecoration(hintText: 'بماذا تفكر يا أوتاكو؟')),
-          const SizedBox(height: 12),
-          if (_image != null) Stack(alignment: Alignment.topRight, children: [
-            Image.file(_image!, height: 200, width: double.infinity, fit: BoxFit.cover),
-            IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() => _image = null)),
-          ]),
-          if (_video != null) Stack(alignment: Alignment.topRight, children: [
-            Container(height: 200, width: double.infinity, color: Colors.black, child: const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.videocam, color: AppColors.gold, size: 60), Text('فيديو 5 ثوان جاهز', style: TextStyle(color: AppColors.gold))]))),
-            IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => setState(() => _video = null)),
-          ]),
-          const SizedBox(height: 12),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-            OutlinedButton.icon(onPressed: _pickImage, icon: const Icon(Icons.image, size: 18), label: const Text('صورة')),
-            OutlinedButton.icon(onPressed: canPostVideo ? _pickVideo : null, icon: Icon(Icons.videocam, size: 18, color: canPostVideo ? null : Colors.grey), label: Text('فيديو ($_remainingVideos/5)', style: TextStyle(color: canPostVideo ? null : Colors.grey))),
-          ]),
-          const SizedBox(height: 12),
-          SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _post, icon: const Icon(Icons.send), label: const Text('نشر'))),
-        ]),
-      ),
-    );
-  }
-}
-
-// =======================================================
-// 5. الخدمات
-// =======================================================
-class ServicesPage extends StatelessWidget {
-  final AppData data;
-  const ServicesPage({super.key, required this.data});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('الخدمات')),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
-        ServiceTile(icon: Icons.bar_chart, title: 'إحصائياتي', subtitle: 'نشاطك بالأرقام', colorIndex: 0, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => MyStatsPage(data: data)))),
-        ServiceTile(icon: Icons.workspace_premium, title: 'شهادات الإنجاز', subtitle: 'شهاداتك', colorIndex: 6, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CertificatesPage(data: data)))),
-        ServiceTile(icon: Icons.trending_up, title: 'لوحة التقدم', subtitle: 'تقدمك', colorIndex: 2, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProgressPage(data: data)))),
-        ServiceTile(icon: Icons.emoji_events, title: 'خزانة الجوائز', subtitle: 'جوائزك', colorIndex: 1, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RewardsPage(data: data)))),
-        ServiceTile(icon: Icons.photo_library, title: 'معرض الصور', subtitle: 'معرض المجتمع', badge: data.hasNewGallery, colorIndex: 3, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GalleryPage(data: data))).then((_) => data.markGallerySeen())),
-        ServiceTile(icon: Icons.quiz, title: 'لعبة الأسئلة', subtitle: 'اختبر نفسك', badge: data.hasNewQuiz, colorIndex: 4, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => QuestionsHubPage(data: data)))),
-        ServiceTile(icon: Icons.leaderboard, title: 'المتصدرون', subtitle: 'الترتيب', colorIndex: 7, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => LeaderboardPage(data: data)))),
-        ServiceTile(icon: Icons.message, title: 'رسالة للإدارة', subtitle: 'تواصل', colorIndex: 9, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SendMessagePage(data: data)))),
-      ]),
-    );
-  }
-}
-
-class ServiceTile extends StatelessWidget {
-  final IconData icon; final String title; final String subtitle; final VoidCallback onTap; final bool badge; final int colorIndex;
-  const ServiceTile({super.key, required this.icon, required this.title, required this.subtitle, required this.onTap, required this.colorIndex, this.badge = false});
-  @override
-  Widget build(BuildContext context) {
-    final color = AppColors.getColor(colorIndex);
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12), elevation: 4, shadowColor: color.withOpacity(0.4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: color.withOpacity(0.3))),
-      child: Container(
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), gradient: LinearGradient(colors: [color.withOpacity(0.15), color.withOpacity(0.05)])),
-        child: ListTile(
-          onTap: onTap,
-          leading: Badge(isLabelVisible: badge, backgroundColor: Colors.red, child: CircleAvatar(backgroundColor: color, child: Icon(icon, color: Colors.white))),
-          title: Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
-          subtitle: Text(subtitle),
-          trailing: const Icon(Icons.arrow_back_ios, size: 18),
-        ),
-      ),
-    );
-  }
-}
-
-// =======================================================
-// 6. إحصائياتي
-// =======================================================
-class MyStatsPage extends StatelessWidget {
-  final AppData data;
-  const MyStatsPage({super.key, required this.data});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(title: const Text('إحصائياتي')), body: AnimatedBuilder(animation: data, builder: (context, _) => ListView(padding: const EdgeInsets.all(16), children: [
-      _statCard('📝', 'منشوراتي', '${data.myPostsCount}', 'منشور'),
-      _statCard('❤️', 'الإعجابات المستلمة', '${data.myReceivedLikes}', 'إعجاب'),
-      _statCard('👥', 'المتابعون', '${data.myFollowersCount}', 'متابع'),
-      _statCard('👤', 'يتابع', '${data.myFollowingCount}', 'حساب'),
-      _statCard('⭐', 'نقاطي', '${data.currentPoints}', 'نقطة'),
-      _statCard('🎖️', 'المستوى', data.currentLevel, ''),
-      _statCard('🏅', 'الجوائز', '${data.userRewards.length}', 'جائزة'),
-    ])));
-  }
-  Widget _statCard(String icon, String title, String value, String suffix) => Card(margin: const EdgeInsets.only(bottom: 12), child: ListTile(leading: Text(icon, style: const TextStyle(fontSize: 40)), title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.gold)), trailing: Text('$value $suffix', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))));
-}
-
-class CertificatesPage extends StatelessWidget {
-  final AppData data;
-  const CertificatesPage({super.key, required this.data});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(title: const Text('شهادات الإنجاز')), body: AnimatedBuilder(animation: data, builder: (context, _) {
-      final certs = buildCertificates(postsCount: data.myPostsCount, receivedLikes: data.myReceivedLikes, points: data.currentPoints, level: data.currentLevel);
-      return ListView.builder(padding: const EdgeInsets.all(16), itemCount: certs.length, itemBuilder: (_, i) {
-        final c = certs[i]; final color = c.unlocked ? AppColors.gold : Colors.grey;
-        return Card(color: c.unlocked ? AppColors.getColor(6).withOpacity(0.15) : AppColors.cardBlack, child: ListTile(
-          leading: Container(decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: color, width: 2)), padding: const EdgeInsets.all(8), child: Text(c.icon, style: TextStyle(fontSize: 32, color: c.unlocked ? null : Colors.grey))),
-          title: Text(c.title, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
-          subtitle: Text(c.description, style: const TextStyle(fontSize: 12)),
-          trailing: Icon(c.unlocked ? Icons.verified : Icons.lock, color: color, size: 28),
-        ));
-      });
-    }));
-  }
-}
-
-class ProgressPage extends StatelessWidget {
-  final AppData data;
-  const ProgressPage({super.key, required this.data});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(title: const Text('لوحة التقدم')), body: AnimatedBuilder(animation: data, builder: (context, _) {
-      final points = data.currentPoints; final nextBadge = data.nextBadge; final currentBadge = data.currentBadge;
-      final currentPts = currentBadge?.points ?? 0; final nextPts = nextBadge?.points ?? points;
-      final range = nextPts - currentPts; final progress = range > 0 ? ((points - currentPts) / range).clamp(0.0, 1.0) : 1.0;
-      return ListView(padding: const EdgeInsets.all(16), children: [
-        Card(child: Padding(padding: const EdgeInsets.all(20), child: Column(children: [
-          const Text('نقاطك الحالية', style: TextStyle(color: Colors.grey)),
-          Text('$points', style: const TextStyle(fontSize: 60, fontWeight: FontWeight.bold, color: AppColors.gold)),
-          Text('المستوى: ${data.currentLevel}', style: const TextStyle(fontSize: 18)),
-        ]))),
-        const SizedBox(height: 16),
-        if (nextBadge != null) Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
-          Row(children: [Text(currentBadge?.icon ?? '', style: const TextStyle(fontSize: 32)), const Spacer(), Text(nextBadge.icon, style: const TextStyle(fontSize: 32))]),
-          const SizedBox(height: 8),
-          ClipRRect(borderRadius: BorderRadius.circular(20), child: LinearProgressIndicator(value: progress, minHeight: 20, backgroundColor: Colors.grey.shade800, valueColor: AlwaysStoppedAnimation(AppColors.getColor(2)))),
-          const SizedBox(height: 8),
-          Center(child: Text('${(progress * 100).toStringAsFixed(0)}%', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18))),
-          Center(child: Text('الشارة القادمة: ${nextBadge.name} (${nextPts - points} نقطة متبقية)', style: const TextStyle(fontSize: 12))),
-        ]))),
-      ]);
-    }));
-  }
-}
-
-class SoundsPage extends StatefulWidget {
-  const SoundsPage({super.key});
-  @override
-  State<SoundsPage> createState() => _SoundsPageState();
-}
-
-class _SoundsPageState extends State<SoundsPage> {
-  bool _soundEnabled = true;
-  @override
-  void initState() { super.initState(); _load(); }
-  Future<void> _load() async { final prefs = await SharedPreferences.getInstance(); setState(() => _soundEnabled = prefs.getBool('mr_otaku_sound_enabled') ?? true); }
-  Future<void> _toggle(bool v) async { final prefs = await SharedPreferences.getInstance(); await prefs.setBool('mr_otaku_sound_enabled', v); setState(() => _soundEnabled = v); if (v) await playClickSound(); }
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(title: const Text('أصوات التطبيق')), body: ListView(padding: const EdgeInsets.all(16), children: [
-      Card(child: SwitchListTile(title: const Text('الصوت/الاهتزاز', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.gold)), subtitle: const Text('اهتزاز عند الضغط على الأزرار'), value: _soundEnabled, onChanged: _toggle, activeColor: AppColors.gold)),
-    ]));
-  }
-}
-
-// =======================================================
-// 7. الأخبار + التعليقات
-// =======================================================
-class NewsPage extends StatelessWidget {
-  final AppData data;
-  const NewsPage({super.key, required this.data});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(title: const Text('الأخبار')), body: RefreshIndicator(onRefresh: data.loadData, child: data.news.isEmpty ? ListView(children: const [SizedBox(height: 200), Center(child: Text('لا توجد أخبار'))]) : ListView.builder(padding: const EdgeInsets.all(12), itemCount: data.news.length, itemBuilder: (_, index) => NewsCard(data: data, news: data.news[index]))));
-  }
-}
-
-class NewsCard extends StatelessWidget {
-  final AppData data; final Map<String, dynamic> news;
-  const NewsCard({super.key, required this.data, required this.news});
-  @override
-  Widget build(BuildContext context) {
-    final id = news['id']; final image = clean(news['image_url']); final liked = data.likedNews.contains(id.toString());
-    return Card(margin: const EdgeInsets.only(bottom: 14), clipBehavior: Clip.antiAlias, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      if (image.isNotEmpty) CachedNetworkImage(imageUrl: image, width: double.infinity, height: 210, fit: BoxFit.cover, errorWidget: (_, __, ___) => const SizedBox(height: 210, child: Icon(Icons.broken_image, size: 50, color: AppColors.gold))),
-      Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(clean(news['title']), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.gold)),
-        const SizedBox(height: 8),
-        Text(clean(news['description'])),
-        const SizedBox(height: 10),
-        Row(children: [
-          IconButton(onPressed: () async { await playClickSound(); await data.toggleLike(id); }, icon: Icon(liked ? Icons.favorite : Icons.favorite_border, color: liked ? Colors.red : AppColors.gold)),
-          Text('${data.likeCounts[id] ?? 0}'),
-          const SizedBox(width: 12),
-          IconButton(onPressed: () { Navigator.push(context, MaterialPageRoute(builder: (_) => CommentsPage(data: data, newsId: id))); }, icon: const Icon(Icons.comment_outlined)),
-          Text('${data.commentCounts[id] ?? 0}'),
-        ]),
-      ])),
-    ]));
-  }
-}
-
-class NewsDetailsPage extends StatelessWidget {
-  final Map<String, dynamic> news;
-  const NewsDetailsPage({super.key, required this.news});
-  @override
-  Widget build(BuildContext context) {
-    final image = clean(news['image_url']);
-    return Scaffold(appBar: AppBar(title: const Text('الخبر')), body: ListView(padding: const EdgeInsets.all(16), children: [
-      if (image.isNotEmpty) ClipRRect(borderRadius: BorderRadius.circular(18), child: CachedNetworkImage(imageUrl: image, height: 230, fit: BoxFit.cover)),
-      const SizedBox(height: 15),
-      Text(clean(news['title']), style: const TextStyle(fontSize: 25, fontWeight: FontWeight.bold, color: AppColors.gold)),
-      const SizedBox(height: 12),
-      Text(clean(news['description']), style: const TextStyle(fontSize: 17, height: 1.6)),
-    ]));
-  }
-}
-
-// =======================================================
-// ✅ تعليقات الأخبار (مُصلحة: الأسماء والأيقونات تظهر للجميع)
-// =======================================================
-class CommentsPage extends StatefulWidget {
-  final AppData data; final dynamic newsId;
-  const CommentsPage({super.key, required this.data, required this.newsId});
-  @override
-  State<CommentsPage> createState() => _CommentsPageState();
-}
-
-class _CommentsPageState extends State<CommentsPage> {
-  final controller = TextEditingController();
-  final focusNode = FocusNode();
-  List<Map<String, dynamic>> comments = [];
-  bool loading = true;
-  String? _replyTo;
-  File? _image;
-
-  @override
-  void initState() { super.initState(); load(); }
-  Future<void> load() async { await widget.data.loadPlayers(); await widget.data.loadCommentLikes(); final result = await widget.data.getComments(widget.newsId); if (!mounted) return; setState(() { comments = result; loading = false; }); }
-  Future<void> _pickImage() async { final picker = ImagePicker(); final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70); if (picked != null) setState(() => _image = File(picked.path)); }
-  Future<void> send() async {
-    if (controller.text.trim().isEmpty && _image == null) return;
-    await playClickSound();
-    final ok = await widget.data.addComment(widget.newsId, widget.data.currentDisplayName, controller.text, replyTo: _replyTo, imageFile: _image);
-    if (!mounted) return;
-    if (ok) { controller.clear(); setState(() { _replyTo = null; _image = null; }); await load(); }
-  }
-  void _startReply(String userName) { setState(() => _replyTo = userName); focusNode.requestFocus(); }
-  @override
-  void dispose() { controller.dispose(); focusNode.dispose(); super.dispose(); }
-
-  String _displayNameFor(Map<String, dynamic> item) {
-    final accId = item['account_id'];
-    if (accId != null) {
-      final viaAcc = widget.data.displayNameForAccount(accId);
-      if (viaAcc.isNotEmpty) return viaAcc;
-    }
-    final stored = clean(item['user_name']).trim();
-    return stored.isEmpty ? 'مستخدم' : stored;
-  }
-
-  String _avatarFor(Map<String, dynamic> item) {
-    final accId = item['account_id'];
-    if (accId != null) {
-      final viaAcc = widget.data.avatarForAccount(accId);
-      if (viaAcc.isNotEmpty) return viaAcc;
-    }
-    final stored = clean(item['user_name']).trim().toLowerCase();
-    if (stored.isEmpty) return '';
-    for (final p in widget.data.players) {
-      final pName = clean(p['name']).trim().toLowerCase();
-      final pChannel = clean(p['channel_name']).trim().toLowerCase();
-      if (pName == stored || pChannel == stored) {
-        return clean(p['avatar_url']);
-      }
-    }
-    return '';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(title: const Text('التعليقات')), body: Column(children: [
-      Expanded(child: loading ? const Center(child: CircularProgressIndicator()) : comments.isEmpty ? const Center(child: Text('لا توجد تعليقات')) : AnimatedBuilder(animation: widget.data, builder: (context, _) => ListView.builder(
-        padding: const EdgeInsets.all(12), itemCount: comments.length,
-        itemBuilder: (_, index) {
-          final item = comments[index];
-          final name = _displayNameFor(item);
-          final replyTo = clean(item['reply_to']);
-          final img = clean(item['image_url']);
-          final url = _avatarFor(item);
-          final cid = item['id'];
-          final isLiked = widget.data.isCommentLiked(cid, 'news');
-          return Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              GestureDetector(
-                onTap: () => showAvatarDialog(context, url, name),
-                child: CircleAvatar(radius: 18, backgroundColor: AppColors.gold, backgroundImage: url.isNotEmpty ? CachedNetworkImageProvider(url) : null, child: url.isEmpty ? const Icon(Icons.person, color: Colors.black, size: 18) : null),
-              ),
-              const SizedBox(width: 8),
-              Expanded(child: Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.getColorForName(name)))),
-              IconButton(icon: const Icon(Icons.reply, color: AppColors.gold, size: 20), onPressed: () => _startReply(name)),
-            ]),
-            const SizedBox(height: 6),
-            if (replyTo.isNotEmpty) Text('↩️ رداً على $replyTo', style: TextStyle(fontSize: 11, color: AppColors.gold, fontStyle: FontStyle.italic)),
-            if (clean(item['comment_text']).isNotEmpty) Text(clean(item['comment_text'])),
-            if (img.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: ClipRRect(borderRadius: BorderRadius.circular(8), child: CachedNetworkImage(imageUrl: img, height: 120, fit: BoxFit.cover))),
-            const SizedBox(height: 6),
-            Row(children: [
-              IconButton(onPressed: () async { await widget.data.toggleCommentLike(cid, 'news'); }, icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border, color: isLiked ? Colors.red : AppColors.gold, size: 18)),
-              Text('${widget.data.commentLikesCount(cid, 'news')}', style: const TextStyle(fontSize: 12)),
-            ]),
-          ])));
-        },
-      ))),
-      if (_replyTo != null) Container(padding: const EdgeInsets.all(8), color: AppColors.gold.withOpacity(0.15), child: Row(children: [const Icon(Icons.reply, size: 18, color: AppColors.gold), Expanded(child: Text('الرد على $_replyTo', style: const TextStyle(color: AppColors.gold, fontSize: 13))), IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => setState(() => _replyTo = null))])),
-      if (_image != null) Container(padding: const EdgeInsets.all(8), color: AppColors.cardBlack, child: Row(children: [const Icon(Icons.image, color: AppColors.gold), const SizedBox(width: 8), const Expanded(child: Text('صورة جاهزة')), IconButton(icon: const Icon(Icons.close, color: Colors.red, size: 18), onPressed: () => setState(() => _image = null))])),
-      Padding(padding: const EdgeInsets.all(10), child: Row(children: [
-        IconButton(icon: const Icon(Icons.image, color: AppColors.gold), onPressed: _pickImage),
-        Expanded(child: TextField(controller: controller, focusNode: focusNode, decoration: InputDecoration(hintText: _replyTo == null ? 'اكتب تعليقك' : 'الرد على $_replyTo'))),
-        IconButton(onPressed: send, icon: const Icon(Icons.send)),
-      ])),
-    ]));
-  }
-}
-
-class NotificationsPage extends StatelessWidget {
-  final AppData data;
-  const NotificationsPage({super.key, required this.data});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(title: const Text('الإشعارات'), actions: [if (data.notifications.isNotEmpty) IconButton(onPressed: () => data.markAllNotificationsRead(), icon: const Icon(Icons.done_all))]), body: data.notifications.isEmpty ? const Center(child: Text('لا توجد إشعارات')) : ListView.builder(padding: const EdgeInsets.all(12), itemCount: data.notifications.length, itemBuilder: (_, index) { final item = data.notifications[index]; final read = data.isNotificationRead(item['id']); return Card(child: ListTile(leading: Icon(read ? Icons.notifications_none : Icons.notifications_active, color: read ? Colors.grey : AppColors.gold), title: Text(clean(item['title']), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.gold)), subtitle: Text(clean(item['body'])), onTap: () => data.markNotificationRead(item['id']))); }));
-  }
-}
+      duration: const Duration(minutes: 5), behavior: SnackBarBehavior.floating,
