@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "981475281796",
+    "project_id": "mr-otaku",
+    "storage_bucket": "mr-otaku.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:981475281796:android:b6c4a9f39648e3e3726bd1",
+        "android_client_info": {
+          "package_name": "com.msotaku.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDf3SiUO78hNNhPmivBlzQeiUg2vWBCJLI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
