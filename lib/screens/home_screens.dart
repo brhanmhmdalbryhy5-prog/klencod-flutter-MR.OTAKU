@@ -964,6 +964,7 @@ class _CommentsPageState extends State<CommentsPage> {
   List<Map<String, dynamic>> comments = [];
   bool loading = true;
   String? _replyTo;
+  String? _replyToId; // 👈 أضف هذا السطر
   File? _image;
 
   @override
@@ -973,11 +974,32 @@ class _CommentsPageState extends State<CommentsPage> {
   Future<void> send() async {
     if (controller.text.trim().isEmpty && _image == null) return;
     await playClickSound();
-    final ok = await widget.data.addComment(widget.newsId, widget.data.currentDisplayName, controller.text, replyTo: _replyTo, imageFile: _image);
+    final ok = await widget.data.addComment(
+      widget.newsId, 
+      widget.data.currentDisplayName, 
+      controller.text, 
+      replyTo: _replyTo, 
+      replyToId: _replyToId, // 👈 تمرير المعرف
+      imageFile: _image
+    );
     if (!mounted) return;
-    if (ok) { controller.clear(); setState(() { _replyTo = null; _image = null; }); await load(); }
+    if (ok) { 
+      controller.clear(); 
+      setState(() { 
+        _replyTo = null; 
+        _replyToId = null; // 👈 مسح المعرف
+        _image = null; 
+      }); 
+      await load(); 
+    }
   }
-  void _startReply(String userName) { setState(() => _replyTo = userName); focusNode.requestFocus(); }
+  void _startReply(String userName, String commentId) { 
+    setState(() { 
+      _replyTo = userName; 
+      _replyToId = commentId; // 👈 حفظ المعرف
+    }); 
+    focusNode.requestFocus(); 
+  }
   @override
   void dispose() { controller.dispose(); focusNode.dispose(); super.dispose(); }
 
@@ -1030,7 +1052,10 @@ class _CommentsPageState extends State<CommentsPage> {
               ),
               const SizedBox(width: 8),
               Expanded(child: Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.getColorForName(name)))),
-              IconButton(icon: const Icon(Icons.reply, color: AppColors.gold, size: 20), onPressed: () => _startReply(name)),
+              IconButton(
+                icon: const Icon(Icons.reply, color: AppColors.gold, size: 20), 
+                onPressed: () => _startReply(name, cid.toString()) // 👈 تمرير cid
+              ),
             ]),
             const SizedBox(height: 6),
             if (replyTo.isNotEmpty) Text('↩️ رداً على $replyTo', style: TextStyle(fontSize: 11, color: AppColors.gold, fontStyle: FontStyle.italic)),
@@ -1044,7 +1069,7 @@ class _CommentsPageState extends State<CommentsPage> {
           ])));
         },
       ))),
-      if (_replyTo != null) Container(padding: const EdgeInsets.all(8), color: AppColors.gold.withOpacity(0.15), child: Row(children: [const Icon(Icons.reply, size: 18, color: AppColors.gold), Expanded(child: Text('الرد على $_replyTo', style: const TextStyle(color: AppColors.gold, fontSize: 13))), IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => setState(() => _replyTo = null))])),
+      if (_replyTo != null) Container(padding: const EdgeInsets.all(8), color: AppColors.gold.withOpacity(0.15), child: Row(children: [const Icon(Icons.reply, size: 18, color: AppColors.gold), Expanded(child: Text('الرد على $_replyTo', style: const TextStyle(color: AppColors.gold, fontSize: 13))), IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => setState(() { _replyTo = null; _replyToId = null; }))])),
       if (_image != null) Container(padding: const EdgeInsets.all(8), color: AppColors.cardBlack, child: Row(children: [const Icon(Icons.image, color: AppColors.gold), const SizedBox(width: 8), const Expanded(child: Text('صورة جاهزة')), IconButton(icon: const Icon(Icons.close, color: Colors.red, size: 18), onPressed: () => setState(() => _image = null))])),
       Padding(padding: const EdgeInsets.all(10), child: Row(children: [
         IconButton(icon: const Icon(Icons.image, color: AppColors.gold), onPressed: _pickImage),
