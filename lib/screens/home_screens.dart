@@ -132,7 +132,7 @@ class _HomeTabState extends State<HomeTab> {
         actions: [
           IconButton(onPressed: () => showSearch(context: context, delegate: CustomSearchDelegate(widget.data)), icon: const Icon(Icons.search)),
           IconButton(
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => NotificationsPage(data: widget.data))),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => NotificationsPage(data: widget.data))).then((_) => widget.data.loadNotifications()),
             icon: Badge(isLabelVisible: widget.data.unreadNotificationCount > 0, backgroundColor: Colors.red, label: Text(widget.data.unreadNotificationCount.toString()), child: const Icon(Icons.notifications)),
           ),
         ],
@@ -216,7 +216,6 @@ class _HomeTabState extends State<HomeTab> {
                 ),
               ),
             if (widget.data.importantNews.trim().isNotEmpty) const SizedBox(height: 16),
-            // ✅ استطلاع الرأي
             if (widget.data.activePoll != null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -452,15 +451,14 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   int _tab = 0;
-  int _totalLikes = 0; // ✅ متغير جديد لعدد اللايكات
+  int _totalLikes = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadTotalLikes(); // ✅ استدعاء الدالة عند فتح الصفحة
+    _loadTotalLikes();
   }
 
-  // ✅ دالة جلب اللايكات من Supabase
   Future<void> _loadTotalLikes() async {
     if (widget.data.currentAccountId == null) return;
     try {
@@ -545,7 +543,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   Text('ID: ${widget.data.currentAccountId} | ${widget.data.currentLevel}'),
                   const SizedBox(height: 8),
                   
-                  // ✅ تعديل صف الإحصائيات لإضافة اللايكات
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     GestureDetector(onTap: () => setState(() => _tab = 0), child: _statTikTok('${myPosts.length}', 'منشورات')),
                     Container(width: 1, height: 30, color: Colors.grey, margin: const EdgeInsets.symmetric(horizontal: 12)),
@@ -553,7 +550,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     Container(width: 1, height: 30, color: Colors.grey, margin: const EdgeInsets.symmetric(horizontal: 12)),
                     GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => FollowersPage(data: widget.data, showFollowers: false, accountId: widget.data.currentAccountId!))), child: _statTikTok('${widget.data.myFollowingCount}', 'يتابع')),
                     Container(width: 1, height: 30, color: Colors.grey, margin: const EdgeInsets.symmetric(horizontal: 12)),
-                    // ✅ عرض اللايكات
                     _statTikTok('$_totalLikes', 'إعجاب'),
                   ]),
 
@@ -1064,6 +1060,19 @@ class NotificationsPage extends StatelessWidget {
   const NotificationsPage({super.key, required this.data});
   @override
   Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(title: const Text('الإشعارات'), actions: [if (data.notifications.isNotEmpty) IconButton(onPressed: () => data.markAllNotificationsRead(), icon: const Icon(Icons.done_all))]), body: data.notifications.isEmpty ? const Center(child: Text('لا توجد إشعارات')) : ListView.builder(padding: const EdgeInsets.all(12), itemCount: data.notifications.length, itemBuilder: (_, index) { final item = data.notifications[index]; final read = data.isNotificationRead(item['id']); return Card(child: ListTile(leading: Icon(read ? Icons.notifications_none : Icons.notifications_active, color: read ? Colors.grey : AppColors.gold), title: Text(clean(item['title']), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.gold)), subtitle: Text(clean(item['body'])), onTap: () => data.markNotificationRead(item['id']))); }));
+    return Scaffold(appBar: AppBar(title: const Text('صندوق الوارد'), actions: [if (data.notifications.isNotEmpty) IconButton(onPressed: () => data.markAllNotificationsRead(), icon: const Icon(Icons.done_all))]), body: AnimatedBuilder(animation: data, builder: (context, _) {
+      if (data.notifications.isEmpty) return const Center(child: Text('لا توجد إشعارات'));
+      return ListView.builder(padding: const EdgeInsets.all(12), itemCount: data.notifications.length, itemBuilder: (_, index) {
+        final item = data.notifications[index];
+        final read = data.isNotificationRead(item['id']);
+        return Card(color: read ? AppColors.cardBlack : AppColors.gold.withOpacity(0.1), child: ListTile(
+          leading: Icon(read ? Icons.notifications_none : Icons.notifications_active, color: read ? Colors.grey : AppColors.gold),
+          title: Text(clean(item['title']), style: TextStyle(fontWeight: FontWeight.bold, color: read ? Colors.grey : AppColors.gold)),
+          subtitle: Text(clean(item['body'])),
+          trailing: read ? null : Container(width: 10, height: 10, decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle)),
+          onTap: () => data.markNotificationRead(item['id']),
+        ));
+      });
+    }));
   }
 }
