@@ -21,8 +21,6 @@ class SyncManager {
 
   bool get isSyncing => _isSyncing;
 
-  // الجداول المسموح بتحميلها وحفظها محلياً.
-  // استبعدنا الرسائل الخاصة والشكاوى والبيانات الإدارية.
   static const List<String> _cacheTables = [
     'news',
     'players',
@@ -49,8 +47,6 @@ class SyncManager {
     'notifications',
   ];
 
-  // مفاتيح UNIQUE المعروفة التي تسمح بإعادة إرسال الإدخال
-  // دون إنشاء سجل مكرر.
   static const Map<String, List<String>> _insertUniqueKeys = {
     'favorites': [
       'account_id',
@@ -93,7 +89,6 @@ class SyncManager {
   };
 
   /// بدء مراقبة الاتصال.
-  /// نمرر له connectionStream من ConnectivityService.
   Future<void> start({
     required Stream<bool> connectionStream,
   }) async {
@@ -101,13 +96,6 @@ class SyncManager {
 
     _isStarted = true;
 
-    await connectionStream.listen((connected) {
-      if (connected) {
-        syncAll();
-      }
-    }).asFuture<void>().catchError((_) {});
-
-    // الاشتراك الفعلي المستمر.
     await _connectionSubscription?.cancel();
 
     _connectionSubscription = connectionStream.listen(
@@ -122,7 +110,7 @@ class SyncManager {
     );
   }
 
-  /// مزامنة جميع البيانات والعمليات.
+  /// مزامنة البيانات والعمليات المعلقة.
   Future<void> syncAll() async {
     if (_isSyncing) return;
 
@@ -138,7 +126,7 @@ class SyncManager {
     }
   }
 
-  /// تحميل الجداول من Supabase وتخزينها محلياً.
+  /// تحميل البيانات من Supabase وحفظها محلياً.
   Future<void> syncTables() async {
     for (final table in _cacheTables) {
       try {
@@ -166,7 +154,6 @@ class SyncManager {
           'Cached $table: ${rows.length} records',
         );
       } catch (e) {
-        // فشل جدول لا يمنع مزامنة بقية الجداول.
         debugPrint('Cache error [$table]: $e');
       }
     }
@@ -181,7 +168,6 @@ class SyncManager {
 
     if (id == null) return null;
 
-    // جدول الأخبار له مفتاح أساسي مركب.
     if (table == 'news') {
       return '${id}_${row['title'] ?? ''}';
     }
@@ -207,10 +193,7 @@ class SyncManager {
     );
   }
 
-  /// إضافة عملية إدخال إلى قائمة الانتظار.
-  ///
-  /// لا يسمح بالإدخال إلا للجداول التي لديها قيد UNIQUE
-  /// معروف يمكن استخدامه لمنع تكرار السجل عند إعادة المحاولة.
+  /// إضافة عملية إدخال آمنة إلى قائمة الانتظار.
   Future<bool> enqueueInsert({
     required String table,
     required Map<String, dynamic> data,
@@ -380,7 +363,7 @@ class SyncManager {
         .eq('id', recordId);
   }
 
-  /// إيقاف المراقبة.
+  /// إيقاف مراقبة الاتصال.
   Future<void> dispose() async {
     await _connectionSubscription?.cancel();
     _connectionSubscription = null;
