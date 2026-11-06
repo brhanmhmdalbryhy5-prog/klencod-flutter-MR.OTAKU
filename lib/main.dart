@@ -1,9 +1,10 @@
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide toInt;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:workmanager/workmanager.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'core/colors.dart';
 import 'core/helpers.dart';
@@ -18,10 +19,28 @@ import 'screens/home_screens.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 1. تهيئة Firebase
+  await Firebase.initializeApp();
+
   await Supabase.initialize(
     url: 'https://sekchgllbimoedsjoumi.supabase.co',
     anonKey: 'sb_publishable_EZLVSUviR39RXi6OP3OqfQ_3j7vMZcU',
   );
+
+  // 2. طلب إذن الإشعارات والاشتراك في قناة FCM
+  try {
+    NotificationSettings settings = await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      await FirebaseMessaging.instance.subscribeToTopic('all_users');
+      debugPrint('✅ Subscribed to FCM all_users topic successfully!');
+    }
+  } catch (e) {
+    debugPrint('FCM initialization error: $e');
+  }
 
   await LocalCache.init();
   await LocalDatabase.instance.database;
@@ -70,6 +89,8 @@ class _MrOtakuAppState extends State<MrOtakuApp> {
   void initState() {
     super.initState();
     start();
+    // الاستماع لإشعارات Firebase أثناء فتح التطبيق
+    NotificationService.listenToFCM();
   }
 
   Future<void> start() async {
@@ -348,6 +369,19 @@ class NotificationService {
     } catch (e) {
       debugPrint('Check notifications error: $e');
     }
+  }
+
+  // دالة جديدة لاستقبال إشعارات Firebase وعرضها كإشعار محلي
+  static Future<void> listenToFCM() async {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      if (message.notification != null) {
+        show(
+          message.notification!.title ?? 'إشعار جديد',
+          message.notification!.body ?? '',
+          id: message.hashCode,
+        );
+      }
+    });
   }
 }
 
