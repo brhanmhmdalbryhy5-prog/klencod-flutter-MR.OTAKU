@@ -1,3 +1,4 @@
+
 name: Build APK
 
 on:
@@ -8,6 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -23,6 +25,22 @@ jobs:
 
       - name: Get dependencies
         run: flutter pub get
+
+      - name: Fix Gal Android Build
+        run: |
+          GAL_GRADLE=$(find "$HOME/.pub-cache/hosted/pub.dev" -path "*/gal-*/android/build.gradle" -print -quit)
+
+          if [ -z "$GAL_GRADLE" ]; then
+            echo "ERROR: Gal build.gradle not found"
+            exit 1
+          fi
+
+          echo "Fixing: $GAL_GRADLE"
+
+          sed -i 's/flutter\.compileSdkVersion/34/g' "$GAL_GRADLE"
+
+          echo "Updated Gal compileSdk:"
+          grep -n "compileSdk" "$GAL_GRADLE"
 
       - name: Build APK
         run: flutter build apk --release
