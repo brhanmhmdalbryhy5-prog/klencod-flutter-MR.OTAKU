@@ -10,9 +10,6 @@ import 'core/colors.dart';
 import 'core/helpers.dart';
 import 'core/theme_manager.dart';
 import 'data/app_data.dart';
-import 'data/local/local_database.dart';
-import 'data/connectivity_service.dart';
-import 'data/sync_manager.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home_screens.dart';
 
@@ -43,23 +40,7 @@ Future<void> main() async {
   }
 
   await LocalCache.init();
-  await LocalDatabase.instance.database;
   await ThemeManager.instance.load();
-
-  try {
-    await ConnectivityService.instance.startMonitoring();
-
-    await SyncManager.instance.start(
-      connectionStream:
-          ConnectivityService.instance.connectionStream,
-    );
-
-    if (ConnectivityService.instance.isConnected) {
-      SyncManager.instance.syncAll();
-    }
-  } catch (e) {
-    debugPrint('Sync initialization error: $e');
-  }
 
   runApp(const MrOtakuApp());
 
