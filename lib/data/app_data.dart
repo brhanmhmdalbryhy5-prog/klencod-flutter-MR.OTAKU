@@ -16,6 +16,19 @@ class LocalCache {
   static Future<void> saveInt(String key, int? value) async { await init(); try { if (value == null) { await _prefs!.remove('$_prefix$key'); } else { await _prefs!.setInt('$_prefix$key', value); } } catch (_) {} }
   static int? loadInt(String key) => _prefs?.getInt('$_prefix$key');
   static Future<void> remove(String key) async { await init(); try { await _prefs!.remove('$_prefix$key'); } catch (_) {} }
+  
+  // ✅ إضافة دوال القوائم
+  static Future<void> saveList(String key, List<Map<String, dynamic>> data) async {
+    await init();
+    try { await _prefs!.setString('$_prefix$key', jsonEncode(data)); } catch (_) {}
+  }
+  static List<Map<String, dynamic>> loadList(String key) {
+    final raw = _prefs?.getString('$_prefix$key');
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      return (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (_) { return []; }
+  }
 }
 
 class AppData extends ChangeNotifier {
@@ -211,8 +224,17 @@ class AppData extends ChangeNotifier {
   }
 
   Future<void> loadData() async {
-    loading = true; notifyListeners();
+    // 1. قراءة البيانات من التخزين المحلي أولاً (لتفتح الشاشة فوراً)
+    news = LocalCache.loadList('news');
+    players = LocalCache.loadList('players');
+    latest = LocalCache.loadList('latest');
+    notifyListeners(); 
+
+    loading = true; 
+    notifyListeners();
+    
     try {
+      // 2. جلب البيانات الجديدة من Supabase
       final results = await Future.wait([
         supabase.from('news').select().order('created_at', ascending: false),
         supabase.from('players').select().order('points', ascending: false),
@@ -221,6 +243,12 @@ class AppData extends ChangeNotifier {
       news = List<Map<String, dynamic>>.from(results[0]);
       players = List<Map<String, dynamic>>.from(results[1]);
       latest = List<Map<String, dynamic>>.from(results[2]);
+
+      // 3. حفظ البيانات الجديدة في التخزين المحلي
+      LocalCache.saveList('news', news);
+      LocalCache.saveList('players', players);
+      LocalCache.saveList('latest', latest);
+
       await loadLikes(); await loadCommentCounts(); await loadNotifications();
       await loadPoll(); await loadQuizQuestions(); await loadImportantNews();
       await loadGallery(); await loadPosts(); await loadUserRewards();
