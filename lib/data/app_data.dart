@@ -16,8 +16,7 @@ class LocalCache {
   static Future<void> saveInt(String key, int? value) async { await init(); try { if (value == null) { await _prefs!.remove('$_prefix$key'); } else { await _prefs!.setInt('$_prefix$key', value); } } catch (_) {} }
   static int? loadInt(String key) => _prefs?.getInt('$_prefix$key');
   static Future<void> remove(String key) async { await init(); try { await _prefs!.remove('$_prefix$key'); } catch (_) {} }
-  
-  // ✅ إضافة دوال القوائم
+
   static Future<void> saveList(String key, List<Map<String, dynamic>> data) async {
     await init();
     try { await _prefs!.setString('$_prefix$key', jsonEncode(data)); } catch (_) {}
@@ -224,7 +223,6 @@ class AppData extends ChangeNotifier {
   }
 
   Future<void> loadData() async {
-    // 1. قراءة البيانات من التخزين المحلي أولاً (لتفتح الشاشة فوراً)
     news = LocalCache.loadList('news');
     players = LocalCache.loadList('players');
     latest = LocalCache.loadList('latest');
@@ -232,9 +230,8 @@ class AppData extends ChangeNotifier {
 
     loading = true; 
     notifyListeners();
-    
+
     try {
-      // 2. جلب البيانات الجديدة من Supabase
       final results = await Future.wait([
         supabase.from('news').select().order('created_at', ascending: false),
         supabase.from('players').select().order('points', ascending: false),
@@ -244,7 +241,6 @@ class AppData extends ChangeNotifier {
       players = List<Map<String, dynamic>>.from(results[1]);
       latest = List<Map<String, dynamic>>.from(results[2]);
 
-      // 3. حفظ البيانات الجديدة في التخزين المحلي
       LocalCache.saveList('news', news);
       LocalCache.saveList('players', players);
       LocalCache.saveList('latest', latest);
@@ -479,7 +475,7 @@ class AppData extends ChangeNotifier {
   Future<bool> deleteQuizQuestion(dynamic id) async { if (!_isAdmin) return false; try { await supabase.from('quiz_questions').delete().eq('id', id); await loadQuizQuestions(); return true; } catch (e) { return false; } }
 
   Future<void> loadLikes() async { try { final clientId = await getClientId(); final result = await supabase.from('news_likes').select('news_id, client_id'); likeCounts.clear(); likedNews.clear(); for (final item in result) { final id = item['news_id']; likeCounts[id] = (likeCounts[id] ?? 0) + 1; if (clean(item['client_id']) == clientId) likedNews.add(id.toString()); } } catch (e) {} }
-  Future<bool> toggleLike(dynamic newsId) async { try { final clientId = await getClientId(); final key = newsId.toString(); if (likedNews.contains(key)) { await supabase.from('news_likes').delete().eq('news_id', newsId).eq('client_id', clientId); likedNews.remove(key); likeCounts[newsId] = max(0, (likeCounts[newsId] ?? 1) - 1); } else { await supabase.from('news_likes').insert({'news_id': newsId, 'client_id': clientId}); likedNews.add(key); likeCounts[newsId] = (likeCounts[newsId] ?? 0) + 1; } notifyListeners(); return true; } catch (e) { return false; } }
+  Future<bool> toggleLike(dynamic newsId) async { try { final clientId = await getClientId(); final key = newsId.toString(); if (likedNews.contains(key)) { await supabase.from('news_likes').delete().eq('news_id', newsId).eq('client_id', clientId); likedNews.remove(key); likeCounts[newsId] = max(0, (likeCounts[newsId] ?? 1) - 1); } else { await supabase.from('news_likes').insert({'news_id': newsId, 'client_id': clientId, 'account_id': currentAccountId}); likedNews.add(key); likeCounts[newsId] = (likeCounts[newsId] ?? 0) + 1; } notifyListeners(); return true; } catch (e) { return false; } }
   Future<void> loadCommentCounts() async { try { final result = await supabase.from('news_comments').select('news_id'); commentCounts.clear(); for (final item in result) { final id = item['news_id']; commentCounts[id] = (commentCounts[id] ?? 0) + 1; } } catch (e) {} }
   Future<List<Map<String, dynamic>>> getComments(dynamic newsId) async { try { final result = await supabase.from('news_comments').select().eq('news_id', newsId).order('created_at', ascending: false); return List<Map<String, dynamic>>.from(result); } catch (e) { return []; } }
 
@@ -638,4 +634,54 @@ class AppData extends ChangeNotifier {
 
   Future<bool> approvePurchase(Map<String, dynamic> request) async { if (!_isAdmin || request['status'] != 'pending') return false; try { final playerId = request['player_id']; final cost = parseInt(request['cost']); final player = await supabase.from('players').select().eq('id', playerId).maybeSingle(); if (player == null) return false; final points = parseInt(player['points']); if (points < cost) return false; await supabase.from('players').update({'points': points - cost}).eq('id', playerId); await supabase.from('purchase_requests').update({'status': 'approved'}).eq('id', request['id']); await loadData(); return true; } catch (e) { return false; } }
   Future<bool> rejectPurchase(dynamic id) async { if (!_isAdmin) return false; try { await supabase.from('purchase_requests').update({'status': 'rejected'}).eq('id', id); await loadData(); return true; } catch (e) { return false; } }
+
+  // ================= ADMIN NOTIFICATIONS (جديد) =================
+  Future<bool> sendAdminNotification({required String title, required String body, int? targetAccountId}) async {
+    if (!_isAdmin) return false;
+    try {
+      await supabase.from('notifications').insert({
+        'title': title,
+        'body': body,
+        'target_account_id': targetAccountId,
+        'sender_account_id': currentAccountId,
+      });
+      await loadNotifications();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Send admin notification error: $e');
+      return false;
+    }
+  }
+
+  // ================= POST INFO (جديد) =================
+  Future<Map<String, dynamic>> getPostInfo(dynamic postId) async {
+    try {
+      final likes = await supabase.from('post_likes').select('account_id').eq('post_id', postId);
+      final saves = await supabase.from('saved_posts').select('account_id').eq('post_id', postId);
+      
+      List<Map<String, dynamic>> likers = [];
+      List<Map<String, dynamic>> savers = [];
+      
+      final likerIds = likes.map((e) => parseInt(e['account_id'])).toList();
+      final saverIds = saves.map((e) => parseInt(e['account_id'])).toList();
+      
+      likers = players.where((p) => likerIds.contains(parseInt(p['account_id']))).toList();
+      savers = players.where((p) => saverIds.contains(parseInt(p['account_id']))).toList();
+      
+      return {'likers': likers, 'savers': savers, 'totalLikes': likes.length, 'totalSaves': saves.length};
+    } catch (e) {
+      debugPrint('Get post info error: $e');
+      return {'likers': [], 'savers': [], 'totalLikes': 0, 'totalSaves': 0};
+    }
+  }
+
+  // ================= VIEWS COUNTER (جديد) =================
+  Future<void> incrementPostView(dynamic postId) async {
+    try {
+      final current = await supabase.from('posts').select('views_count').eq('id', postId).maybeSingle();
+      final views = parseInt(current?['views_count']) + 1;
+      await supabase.from('posts').update({'views_count': views}).eq('id', postId);
+    } catch (_) {}
+  }
 }
