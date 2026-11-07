@@ -222,7 +222,9 @@ class AppData extends ChangeNotifier {
     } catch (e) { return false; }
   }
 
+  // ✅ دالة loadData المعدلة للتحميل في الخلفية
   Future<void> loadData() async {
+    // 1. قراءة البيانات من التخزين المحلي أولاً (لتفتح الشاشة فوراً)
     news = LocalCache.loadList('news');
     players = LocalCache.loadList('players');
     latest = LocalCache.loadList('latest');
@@ -232,6 +234,7 @@ class AppData extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // 2. جلب البيانات الجديدة من Supabase
       final results = await Future.wait([
         supabase.from('news').select().order('created_at', ascending: false),
         supabase.from('players').select().order('points', ascending: false),
@@ -241,23 +244,53 @@ class AppData extends ChangeNotifier {
       players = List<Map<String, dynamic>>.from(results[1]);
       latest = List<Map<String, dynamic>>.from(results[2]);
 
+      // 3. حفظ البيانات الجديدة في التخزين المحلي
       LocalCache.saveList('news', news);
       LocalCache.saveList('players', players);
       LocalCache.saveList('latest', latest);
 
-      await loadLikes(); await loadCommentCounts(); await loadNotifications();
-      await loadPoll(); await loadQuizQuestions(); await loadImportantNews();
-      await loadGallery(); await loadPosts(); await loadUserRewards();
-      await loadUnreadMessagesCount(); await loadSavedPosts();
-      await loadFollowStats(); await loadCommentLikes(); await loadStories();
+      loading = false; 
+      notifyListeners();
+
+      // 4. جلب باقي البيانات في الخلفية (بدون تعطيل الواجهة)
+      _loadBackgroundData();
+    } catch (e) { 
+      debugPrint('Load data error: $e'); 
+      loading = false; 
+      notifyListeners();
+    }
+  }
+
+  // ✅ دالة جديدة: تحميل البيانات الخلفية
+  Future<void> _loadBackgroundData() async {
+    try {
+      await loadLikes(); 
+      await loadCommentCounts(); 
+      await loadNotifications();
+      await loadPoll(); 
+      await loadQuizQuestions(); 
+      await loadImportantNews();
+      await loadGallery(); 
+      await loadPosts(); 
+      await loadUserRewards();
+      await loadUnreadMessagesCount(); 
+      await loadSavedPosts();
+      await loadFollowStats(); 
+      await loadCommentLikes(); 
+      await loadStories();
+      
       if (_isAdmin) {
         final msgData = await supabase.from('messages').select().order('created_at', ascending: false); messages = List<Map<String, dynamic>>.from(msgData);
         final reqData = await supabase.from('purchase_requests').select().order('created_at', ascending: false); purchaseRequests = List<Map<String, dynamic>>.from(reqData);
         final quizData = await supabase.from('quiz_results').select().order('created_at', ascending: false); quizResults = List<Map<String, dynamic>>.from(quizData);
         final compData = await supabase.from('complaints').select().order('created_at', ascending: false); complaints = List<Map<String, dynamic>>.from(compData);
-      } else { messages = []; purchaseRequests = []; quizResults = []; complaints = []; }
-    } catch (e) { debugPrint('Load data error: $e'); }
-    loading = false; notifyListeners();
+      } else { 
+        messages = []; purchaseRequests = []; quizResults = []; complaints = []; 
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Background load error: $e');
+    }
   }
 
   Future<void> loadPlayers() async { try { final result = await supabase.from('players').select().order('points', ascending: false); players = List<Map<String, dynamic>>.from(result); notifyListeners(); } catch (e) {} }
@@ -635,7 +668,7 @@ class AppData extends ChangeNotifier {
   Future<bool> approvePurchase(Map<String, dynamic> request) async { if (!_isAdmin || request['status'] != 'pending') return false; try { final playerId = request['player_id']; final cost = parseInt(request['cost']); final player = await supabase.from('players').select().eq('id', playerId).maybeSingle(); if (player == null) return false; final points = parseInt(player['points']); if (points < cost) return false; await supabase.from('players').update({'points': points - cost}).eq('id', playerId); await supabase.from('purchase_requests').update({'status': 'approved'}).eq('id', request['id']); await loadData(); return true; } catch (e) { return false; } }
   Future<bool> rejectPurchase(dynamic id) async { if (!_isAdmin) return false; try { await supabase.from('purchase_requests').update({'status': 'rejected'}).eq('id', id); await loadData(); return true; } catch (e) { return false; } }
 
-  // ================= ADMIN NOTIFICATIONS (جديد) =================
+  // ================= ADMIN NOTIFICATIONS =================
   Future<bool> sendAdminNotification({required String title, required String body, int? targetAccountId}) async {
     if (!_isAdmin) return false;
     try {
@@ -654,7 +687,7 @@ class AppData extends ChangeNotifier {
     }
   }
 
-  // ================= POST INFO (جديد) =================
+  // ================= POST INFO =================
   Future<Map<String, dynamic>> getPostInfo(dynamic postId) async {
     try {
       final likes = await supabase.from('post_likes').select('account_id').eq('post_id', postId);
@@ -676,7 +709,7 @@ class AppData extends ChangeNotifier {
     }
   }
 
-  // ================= VIEWS COUNTER (جديد) =================
+  // ================= VIEWS COUNTER =================
   Future<void> incrementPostView(dynamic postId) async {
     try {
       final current = await supabase.from('posts').select('views_count').eq('id', postId).maybeSingle();
@@ -685,7 +718,7 @@ class AppData extends ChangeNotifier {
     } catch (_) {}
   }
 
-  // ================= RANK BADGES (دروع اليوتيوب) =================
+  // ================= RANK BADGES =================
   Future<String?> getUserRankBadge(int accountId) async {
     try {
       final myPosts = await supabase.from('posts').select('id').eq('account_id', accountId);
