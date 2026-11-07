@@ -12,21 +12,59 @@ import '../core/helpers.dart';
 import '../core/theme_manager.dart';
 import '../data/app_data.dart';
 import 'post_info_sheet.dart';
+import 'discover_posts_screen.dart'; // ✅ جديد
 
 // =======================================================
-// صفحة المنشورات
+// صفحة المنشورات (زر الاستكشاف)
 // =======================================================
 class PostsPage extends StatelessWidget {
   final AppData data;
   const PostsPage({super.key, required this.data});
   @override
   Widget build(BuildContext context) {
+    final primary = ThemeManager.instance.primaryColor;
     return Scaffold(
       appBar: AppBar(title: const Text('المنشورات')),
-      body: AnimatedBuilder(animation: data, builder: (context, _) {
-        if (data.posts.isEmpty) return const Center(child: Text('لا توجد منشورات بعد.'));
-        return ListView.builder(padding: const EdgeInsets.all(12), itemCount: data.posts.length, itemBuilder: (_, i) => PostCard(data: data, post: data.posts[i]));
-      }),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.auto_awesome, size: 100, color: primary),
+              const SizedBox(height: 24),
+              const Text(
+                'اكتشف إبداعات الأوتاكو',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.gold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'تصفح منشورات المبدعين بطريقة جديدة\n(اسحب للأعلى للتنقل، وانقر مرتين للإعجاب)',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: ThemeManager.instance.getPrimaryGradient(),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: ThemeManager.instance.getGlowShadow(),
+                ),
+                child: Material(color: Colors.transparent, child: InkWell(
+                  borderRadius: BorderRadius.circular(30),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DiscoverPostsScreen(data: data))),
+                  child: Padding(padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 18), child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.play_circle_fill, color: Colors.white, size: 28),
+                    const SizedBox(width: 10),
+                    const Text('استكشف منشورات المبدعين', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                  ])),
+                )),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
