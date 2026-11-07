@@ -684,4 +684,26 @@ class AppData extends ChangeNotifier {
       await supabase.from('posts').update({'views_count': views}).eq('id', postId);
     } catch (_) {}
   }
+
+  // ================= RANK BADGES (دروع اليوتيوب) =================
+  Future<String?> getUserRankBadge(int accountId) async {
+    try {
+      final myPosts = await supabase.from('posts').select('id').eq('account_id', accountId);
+      final postIds = myPosts.map((e) => e['id']).toList();
+      if (postIds.isEmpty) return null;
+      
+      final likes = await supabase.from('post_likes').select('post_id').inFilter('post_id', postIds);
+      final totalLikes = likes.length;
+      
+      if (totalLikes >= 1000) return '👑 أسطوري';
+      if (totalLikes >= 500) return '💎 ماسي';
+      if (totalLikes >= 100) return '🥇 ذهبي';
+      if (totalLikes >= 50) return '🥈 فضي';
+      if (totalLikes >= 10) return '🥉 برونزي';
+      return null;
+    } catch (e) {
+      debugPrint('Get rank badge error: $e');
+      return null;
+    }
+  }
 }
