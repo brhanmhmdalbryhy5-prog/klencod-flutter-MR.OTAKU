@@ -36,65 +36,61 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen> with SingleTi
     if (myId == null) return;
     
     try {
-      // 1. جلب كل الإشعارات الموجهة لي (target_account_id = myId)
-      final notifications = await Supabase.instance.client
-          .from('notifications')
-          .select()
-          .eq('target_account_id', myId)
-          .order('created_at', ascending: false);
+      // 1. جلب من تابعني (follows)
+      final followData = await Supabase.instance.client
+          .from('follows')
+          .select('follower_id')
+          .eq('following_id', myId);
+      final followerIds = followData.map((e) => parseInt(e['follower_id'])).toList();
+      _followers = widget.data.players.where((p) => followerIds.contains(parseInt(p['account_id']))).toList();
 
-      final List<Map<String, dynamic>> followers = [];
-      final List<Map<String, dynamic>> likers = [];
-      final List<Map<String, dynamic>> savers = [];
-      final List<Map<String, dynamic>> repliers = [];
+      // 2. جلب منشوراتي
+      final myPostsData = await Supabase.instance.client
+          .from('posts')
+          .select('id')
+          .eq('account_id', myId);
+      final myPostIds = myPostsData.map((e) => e['id']).toList();
 
-      // 2. تصنيف الإشعارات بناءً على النص
-      for (final notif in notifications) {
-        final title = clean(notif['title']);
-        final senderId = notif['sender_account_id'];
-        
-        if (senderId == null) continue;
+      // 3. جلب من أعجب بمنشوراتي (post_likes)
+      if (myPostIds.isNotEmpty) {
+        final likesData = await Supabase.instance.client
+            .from('post_likes')
+            .select('account_id')
+            .inFilter('post_id', myPostIds);
+        final likerIds = likesData.map((e) => parseInt(e['account_id'])).toSet().toList();
+        _likers = widget.data.players.where((p) => likerIds.contains(parseInt(p['account_id']))).toList();
 
-        // البحث عن بيانات المرسل
-        Map<String, dynamic>? sender;
-        for (final p in widget.data.players) {
-          if (parseInt(p['account_id']) == parseInt(senderId)) {
-            sender = p;
-            break;
-          }
-        }
-        if (sender == null) continue;
-
-        final item = {
-          'player': sender,
-          'title': title,
-          'body': clean(notif['body']),
-        };
-
-        if (title.contains('متابع')) {
-          followers.add(item);
-        } else if (title.contains('إعجاب')) {
-          likers.add(item);
-        } else if (title.contains('حفظ')) {
-          savers.add(item);
-        } else if (title.contains('رد')) {
-          repliers.add(item);
-        }
+        // 4. جلب من حفظ منشوراتي (saved_posts)
+        final savesData = await Supabase.instance.client
+            .from('saved_posts')
+            .select('account_id')
+            .inFilter('post_id', myPostIds);
+        final saverIds = savesData.map((e) => parseInt(e['account_id'])).toSet().toList();
+        _savers = widget.data.players.where((p) => saverIds.contains(parseInt(p['account_id']))).toList();
       }
 
-      if (mounted) {
-        setState(() {
-          _followers = followers;
-          _likers = likers;
-          _savers = savers;
-          _repliers = repliers;
-          _loading = false;
-        });
-      }
+      // 5. جلب من رد على تعليقاتي (post_comments)
+      try {
+        final myComments = await Supabase.instance.client
+            .from('post_comments')
+            .select('id')
+            .eq('account_id', myId);
+        final myCommentIds = myComments.map((e) => e['id'].toString()).toList();
+
+        if (myCommentIds.isNotEmpty) {
+          final replies = await Supabase.instance.client
+              .from('post_comments')
+              .select('account_id')
+              .inFilter('reply_to_id', myCommentIds);
+          final replierIds = replies.map((e) => parseInt(e['account_id'])).toSet().toList();
+          _repliers = widget.data.players.where((p) => replierIds.contains(parseInt(p['account_id']))).toList();
+        }
+      } catch (_) {}
+      
     } catch (e) {
       debugPrint('Activity inbox error: $e');
-      if (mounted) setState(() => _loading = false);
     }
+    if (mounted) setState(() => _loading = false);
   }
 
   @override
@@ -137,8 +133,8 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen> with SingleTi
     );
   }
 
-  Widget _buildList(List<Map<String, dynamic>> items, String action, IconData icon, Color color) {
-    if (items.isEmpty) {
+  Widget _buildList(List<Map<String, dynamic>> users, String action, IconData icon, Color color) {
+    if (users.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -154,12 +150,11 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen> with SingleTi
       onRefresh: _loadAll,
       child: ListView.builder(
         padding: const EdgeInsets.all(12),
-        itemCount: items.length,
+        itemCount: users.length,
         itemBuilder: (context, i) {
-          final item = items[i];
-          final player = item['player'] as Map<String, dynamic>;
-          final name = widget.data.displayNameForAccount(player['account_id']);
-          final avatar = clean(player['avatar_url']);
+          final user = users[i];
+          final name = widget.data.displayNameForAccount(user['account_id']);
+          final avatar = clean(user['avatar_url']);
           return Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
@@ -174,7 +169,7 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen> with SingleTi
                 icon: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.gold),
                 onPressed: () {
                   Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => UserProfilePage(data: widget.data, accountId: parseInt(player['account_id']), userName: name),
+                    builder: (_) => UserProfilePage(data: widget.data, accountId: parseInt(user['account_id']), userName: name),
                   ));
                 },
               ),
