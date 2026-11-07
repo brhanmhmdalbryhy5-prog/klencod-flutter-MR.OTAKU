@@ -56,7 +56,7 @@ class _HomePageState extends State<HomePage> {
       HomeTab(data: widget.data),
       NewsPage(data: widget.data),
       PostsPage(data: widget.data),
-      ActivityInboxScreen(data: widget.data),
+      ActivityInboxScreen(data: widget.data), // ✅ التفاعلات
       ServicesPage(data: widget.data),
       ProfilePage(data: widget.data),
     ];
@@ -284,16 +284,10 @@ class PollCard extends StatelessWidget {
             Row(children: [
               Icon(Icons.poll, color: primary, size: 24),
               const SizedBox(width: 8),
-              const Text(
-                'استطلاع الرأي',
-                style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: AppColors.gold),
-              ),
+              const Text('استطلاع الرأي', style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold, color: AppColors.gold)),
             ]),
             const SizedBox(height: 10),
-            Text(
-              clean(poll['question']),
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
-            ),
+            Text(clean(poll['question']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
             const SizedBox(height: 12),
             ...options.map((option) {
               final id = option['id'];
@@ -309,21 +303,14 @@ class PollCard extends StatelessWidget {
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton(
-                          onPressed: () async {
-                            await playClickSound();
-                            await data.votePoll(id);
-                          },
+                          onPressed: () async { await playClickSound(); await data.votePoll(id); },
                           child: Text(clean(option['option_text'])),
                         ),
                       )
                     else
                       Container(
                         padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppColors.cardBlack,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: primary.withOpacity(0.4)),
-                        ),
+                        decoration: BoxDecoration(color: AppColors.cardBlack, borderRadius: BorderRadius.circular(10), border: Border.all(color: primary.withOpacity(0.4))),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -334,38 +321,18 @@ class PollCard extends StatelessWidget {
                             const SizedBox(height: 6),
                             ClipRRect(
                               borderRadius: BorderRadius.circular(10),
-                              child: LinearProgressIndicator(
-                                value: percentage / 100,
-                                minHeight: 8,
-                                backgroundColor: Colors.grey.shade800,
-                                valueColor: AlwaysStoppedAnimation(primary),
-                              ),
+                              child: LinearProgressIndicator(value: percentage / 100, minHeight: 8, backgroundColor: Colors.grey.shade800, valueColor: AlwaysStoppedAnimation(primary)),
                             ),
                           ],
                         ),
                       ),
                     if (data.isAdmin && voters.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8, top: 4),
-                        child: Text(
-                          'صوّت: ${voters.map((v) => clean(v['user_name'])).join(', ')}',
-                          style: TextStyle(fontSize: 11, color: AppColors.gold.withOpacity(0.7)),
-                        ),
-                      ),
+                      Padding(padding: const EdgeInsets.only(right: 8, top: 4), child: Text('صوّت: ${voters.map((v) => clean(v['user_name'])).join(', ')}', style: TextStyle(fontSize: 11, color: AppColors.gold.withOpacity(0.7)))),
                   ],
                 ),
               );
             }),
-            if (voted)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Center(
-                  child: Text(
-                    'إجمالي المصوتين: ${data.totalPollVotes}',
-                    style: TextStyle(fontSize: 12, color: AppColors.gold.withOpacity(0.7)),
-                  ),
-                ),
-              ),
+            if (voted) Padding(padding: const EdgeInsets.only(top: 8), child: Center(child: Text('إجمالي المصوتين: ${data.totalPollVotes}', style: TextStyle(fontSize: 12, color: AppColors.gold.withOpacity(0.7))))),
           ],
         ),
       ),
@@ -459,7 +426,7 @@ class _MiniStat extends StatelessWidget {
 }
 
 // =======================================================
-// 3. صفحة حسابي
+// 3. صفحة حسابي (مع زر الرسائل)
 // =======================================================
 class ProfilePage extends StatefulWidget {
   final AppData data;
@@ -482,17 +449,11 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _loadTotalLikes() async {
     if (widget.data.currentAccountId == null) return;
     try {
-      final likes = await Supabase.instance.client.rpc(
-        'get_user_total_likes', 
-        params: {'target_user_id': widget.data.currentAccountId}
-      );
+      final likes = await Supabase.instance.client.rpc('get_user_total_likes', params: {'target_user_id': widget.data.currentAccountId});
       if (mounted) setState(() => _totalLikes = likes as int);
-
       final badge = await widget.data.getUserRankBadge(widget.data.currentAccountId!);
       if (mounted) setState(() => _myRankBadge = badge);
-    } catch (e) {
-      debugPrint('Error loading likes: $e');
-    }
+    } catch (e) { debugPrint('Error loading likes: $e'); }
   }
 
   Future<void> _pickAvatar() async {
@@ -563,26 +524,19 @@ class _ProfilePageState extends State<ProfilePage> {
                     Text(widget.data.currentDisplayName, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primary)),
                     IconButton(onPressed: _changeName, icon: Icon(Icons.edit, size: 18, color: primary)),
                   ]),
-
                   Column(children: [
                     Text('ID: ${widget.data.currentAccountId} | ${widget.data.currentLevel}'),
-                    if (_myRankBadge != null) 
+                    if (_myRankBadge != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.gold.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppColors.gold, width: 1),
-                          ),
+                          decoration: BoxDecoration(color: AppColors.gold.withOpacity(0.15), borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.gold, width: 1)),
                           child: Text(_myRankBadge!, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.gold)),
                         ),
                       ),
                   ]),
-
                   const SizedBox(height: 8),
-
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     GestureDetector(onTap: () => setState(() => _tab = 0), child: _statTikTok('${myPosts.length}', 'منشورات')),
                     Container(width: 1, height: 30, color: Colors.grey, margin: const EdgeInsets.symmetric(horizontal: 12)),
@@ -592,7 +546,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     Container(width: 1, height: 30, color: Colors.grey, margin: const EdgeInsets.symmetric(horizontal: 12)),
                     _statTikTok('$_totalLikes', 'إعجاب'),
                   ]),
-
                   if (badge != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('${badge.icon} ${badge.name}')),
                 ]),
               ),
@@ -621,6 +574,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ServiceTile(icon: Icons.flag, title: 'البلاغات', subtitle: '${widget.data.complaints.where((c) => c['status'] == 'pending').length} بلاغ معلق', colorIndex: 4, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManageComplaintsPage(data: widget.data)))),
                     ServiceTile(icon: Icons.campaign, title: 'إدارة الإشعارات', subtitle: 'إرسال إشعارات وإعلانات', colorIndex: 9, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminNotificationsScreen(data: widget.data)))),
                   ],
+                  ServiceTile(icon: Icons.message, title: 'الرسائل', subtitle: 'تواصل مع جميع المستخدمين', colorIndex: 8, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PrivateMessagesPage(data: widget.data)))), // ✅ زر الرسائل
                   ServiceTile(icon: Icons.palette, title: 'الثيمات', subtitle: 'تغيير لون التطبيق', colorIndex: 6, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ThemePickerPage()))),
                   ServiceTile(icon: Icons.volume_up, title: 'أصوات التطبيق', subtitle: 'الاهتزاز والصوت', colorIndex: 5, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundsPage()))),
                 ]),
@@ -1016,58 +970,31 @@ class _CommentsPageState extends State<CommentsPage> {
     if (controller.text.trim().isEmpty && _image == null) return;
     await playClickSound();
     final ok = await widget.data.addComment(
-      widget.newsId, 
-      widget.data.currentDisplayName, 
-      controller.text, 
-      replyTo: _replyTo, 
-      replyToId: _replyToId,
-      imageFile: _image
+      widget.newsId, widget.data.currentDisplayName, controller.text, replyTo: _replyTo, replyToId: _replyToId, imageFile: _image
     );
     if (!mounted) return;
-    if (ok) { 
-      controller.clear(); 
-      setState(() { 
-        _replyTo = null; 
-        _replyToId = null;
-        _image = null; 
-      }); 
-      await load(); 
-    }
+    if (ok) { controller.clear(); setState(() { _replyTo = null; _replyToId = null; _image = null; }); await load(); }
   }
-  void _startReply(String userName, String commentId) { 
-    setState(() { 
-      _replyTo = userName; 
-      _replyToId = commentId;
-    }); 
-    focusNode.requestFocus(); 
-  }
+  void _startReply(String userName, String commentId) { setState(() { _replyTo = userName; _replyToId = commentId; }); focusNode.requestFocus(); }
   @override
   void dispose() { controller.dispose(); focusNode.dispose(); super.dispose(); }
 
   String _displayNameFor(Map<String, dynamic> item) {
     final accId = item['account_id'];
-    if (accId != null) {
-      final viaAcc = widget.data.displayNameForAccount(accId);
-      if (viaAcc.isNotEmpty) return viaAcc;
-    }
+    if (accId != null) { final viaAcc = widget.data.displayNameForAccount(accId); if (viaAcc.isNotEmpty) return viaAcc; }
     final stored = clean(item['user_name']).trim();
     return stored.isEmpty ? 'مستخدم' : stored;
   }
 
   String _avatarFor(Map<String, dynamic> item) {
     final accId = item['account_id'];
-    if (accId != null) {
-      final viaAcc = widget.data.avatarForAccount(accId);
-      if (viaAcc.isNotEmpty) return viaAcc;
-    }
+    if (accId != null) { final viaAcc = widget.data.avatarForAccount(accId); if (viaAcc.isNotEmpty) return viaAcc; }
     final stored = clean(item['user_name']).trim().toLowerCase();
     if (stored.isEmpty) return '';
     for (final p in widget.data.players) {
       final pName = clean(p['name']).trim().toLowerCase();
       final pChannel = clean(p['channel_name']).trim().toLowerCase();
-      if (pName == stored || pChannel == stored) {
-        return clean(p['avatar_url']);
-      }
+      if (pName == stored || pChannel == stored) { return clean(p['avatar_url']); }
     }
     return '';
   }
@@ -1087,16 +1014,10 @@ class _CommentsPageState extends State<CommentsPage> {
           final isLiked = widget.data.isCommentLiked(cid, 'news');
           return Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              GestureDetector(
-                onTap: () => showAvatarDialog(context, url, name),
-                child: CircleAvatar(radius: 18, backgroundColor: AppColors.gold, backgroundImage: url.isNotEmpty ? CachedNetworkImageProvider(url) : null, child: url.isEmpty ? const Icon(Icons.person, color: Colors.black, size: 18) : null),
-              ),
+              GestureDetector(onTap: () => showAvatarDialog(context, url, name), child: CircleAvatar(radius: 18, backgroundColor: AppColors.gold, backgroundImage: url.isNotEmpty ? CachedNetworkImageProvider(url) : null, child: url.isEmpty ? const Icon(Icons.person, color: Colors.black, size: 18) : null)),
               const SizedBox(width: 8),
               Expanded(child: Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.getColorForName(name)))),
-              IconButton(
-                icon: const Icon(Icons.reply, color: AppColors.gold, size: 20), 
-                onPressed: () => _startReply(name, cid.toString())
-              ),
+              IconButton(icon: const Icon(Icons.reply, color: AppColors.gold, size: 20), onPressed: () => _startReply(name, cid.toString())),
             ]),
             const SizedBox(height: 6),
             if (replyTo.isNotEmpty) Text('↩️ رداً على $replyTo', style: TextStyle(fontSize: 11, color: AppColors.gold, fontStyle: FontStyle.italic)),
