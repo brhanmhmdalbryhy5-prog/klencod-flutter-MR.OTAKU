@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:speech_to_text/speech_to_text.dart'; // ✅ جديد
 
 import '../core/colors.dart';
 import '../core/helpers.dart';
@@ -56,7 +57,7 @@ class _HomePageState extends State<HomePage> {
       HomeTab(data: widget.data),
       NewsPage(data: widget.data),
       PostsPage(data: widget.data),
-      ActivityInboxScreen(data: widget.data), // ✅ صندوق التفاعلات الجديد
+      ActivityInboxScreen(data: widget.data),
       ServicesPage(data: widget.data),
       ProfilePage(data: widget.data),
     ];
@@ -81,7 +82,6 @@ class _HomePageState extends State<HomePage> {
             label: 'الأخبار',
           ),
           const NavigationDestination(icon: Icon(Icons.post_add), selectedIcon: Icon(Icons.post_add), label: 'المنشورات'),
-          // ✅ تم استبدال "الرسائل" بـ "التفاعلات"
           NavigationDestination(
             icon: Badge(isLabelVisible: totalUnreadMessages > 0, backgroundColor: Colors.red, label: Text('$totalUnreadMessages'), child: const Icon(Icons.notifications_active_outlined)),
             selectedIcon: const Icon(Icons.notifications_active),
@@ -358,14 +358,77 @@ class PollCard extends StatelessWidget {
 }
 
 // =======================================================
-// البحث
+// البحث (مع البحث الصوتي)
 // =======================================================
 class CustomSearchDelegate extends SearchDelegate {
   final AppData data;
   CustomSearchDelegate(this.data);
 
   @override
-  List<Widget>? buildActions(BuildContext context) => [if (query.isNotEmpty) IconButton(icon: const Icon(Icons.clear), onPressed: () => query = '')];
+  List<Widget>? buildActions(BuildContext context) => [
+    if (query.isNotEmpty) IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
+    IconButton(
+      icon: const Icon(Icons.mic, color: AppColors.gold),
+      onPressed: () => _startVoiceSearch(context),
+      tooltip: 'البحث الصوتي',
+    ),
+  ];
+
+  Future<void> _startVoiceSearch(BuildContext context) async {
+    final SpeechToText speech = SpeechToText();
+    bool available = await speech.initialize(
+      onStatus: (status) {
+        if (status == 'done' || status == 'notListening') {
+          if (speech.isListening) speech.stop();
+        }
+      },
+      onError: (error) { debugPrint('Voice error: $error'); },
+    );
+    if (available) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: const Text('جاري الاستماع...'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.mic, size: 60, color: Colors.red),
+              const SizedBox(height: 16),
+              const Text('تحدث الآن...'),
+              const SizedBox(height: 8),
+              StreamBuilder(
+                stream: speech.onResult,
+                builder: (context, snapshot) {
+                  if (snapshot.hasData) {
+                    final text = snapshot.data!.recognizedWords;
+                    if (text.isNotEmpty) query = text;
+                    return Text('قلت: "$text"', style: const TextStyle(fontStyle: FontStyle.italic));
+                  }
+                  return const SizedBox();
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () { speech.stop(); Navigator.pop(context); },
+              child: const Text('إيقاف'),
+            ),
+          ],
+        ),
+      );
+      await speech.listen(onResult: (result) {
+        if (result.finalResult) {
+          query = result.recognizedWords;
+          if (Navigator.of(context).canPop()) Navigator.pop(context);
+        }
+      });
+    } else {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('البحث الصوتي غير متاح على هذا الجهاز')));
+    }
+  }
+
   @override
   Widget? buildLeading(BuildContext context) => IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
   @override
@@ -582,7 +645,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     ServiceTile(icon: Icons.admin_panel_settings, title: 'لوحة الإدارة', subtitle: 'إدارة التطبيق', colorIndex: 11, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminPanelPage(data: widget.data)))),
                     ServiceTile(icon: Icons.bar_chart, title: 'إحصائيات المدير', subtitle: 'أرقام مفصلة', colorIndex: 0, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminStatsPage(data: widget.data)))),
                     ServiceTile(icon: Icons.flag, title: 'البلاغات', subtitle: '${widget.data.complaints.where((c) => c['status'] == 'pending').length} بلاغ معلق', colorIndex: 4, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManageComplaintsPage(data: widget.data)))),
-                    // ✅ زر إدارة الإشعارات الجديد
                     ServiceTile(icon: Icons.campaign, title: 'إدارة الإشعارات', subtitle: 'إرسال إشعارات وإعلانات', colorIndex: 9, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminNotificationsScreen(data: widget.data)))),
                   ],
                   ServiceTile(icon: Icons.palette, title: 'الثيمات', subtitle: 'تغيير لون التطبيق', colorIndex: 6, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ThemePickerPage()))),
