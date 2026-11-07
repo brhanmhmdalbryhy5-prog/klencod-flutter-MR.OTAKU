@@ -13,7 +13,7 @@ import 'screens/home_screens.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. تهيئة Supabase (ضرورية جداً قبل تشغيل الواجهة)
+  // 1. تهيئة Supabase
   await Supabase.initialize(
     url: 'https://sekchgllbimoedsjoumi.supabase.co',
     anonKey: 'sb_publishable_EZLVSUviR39RXi6OP3OqfQ_3j7vMZcU',
@@ -30,7 +30,7 @@ Future<void> main() async {
   await LocalCache.init();
   await ThemeManager.instance.load();
 
-  // 4. تشغيل التطبيق فوراً (بدون أي انتظار)
+  // 4. تشغيل التطبيق فوراً
   runApp(const MrOtakuApp());
 }
 
@@ -52,24 +52,7 @@ class _MrOtakuAppState extends State<MrOtakuApp> {
   }
 
   Future<void> start() async {
-    // 5. طلب إذن الإشعارات في الخلفية (بعد فتح التطبيق)
-    Future.microtask(() async {
-      try {
-        NotificationSettings settings = await FirebaseMessaging.instance.requestPermission(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
-        if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-          await FirebaseMessaging.instance.subscribeToTopic('all_users');
-          debugPrint('✅ Subscribed to FCM all_users topic');
-        }
-      } catch (e) {
-        debugPrint('FCM permission error: $e');
-      }
-    });
-
-    // 6. تحميل الحساب المحلي
+    // 5. تحميل الحساب المحلي
     try {
       await data.loadLocalAccount();
     } catch (e) {
@@ -79,6 +62,38 @@ class _MrOtakuAppState extends State<MrOtakuApp> {
     if (mounted) {
       setState(() => checking = false);
     }
+
+    // 6. طلب إذن الإشعارات وحفظ التوكن في الخلفية
+    Future.microtask(() async {
+      try {
+        // طلب الإذن
+        NotificationSettings settings = await FirebaseMessaging.instance.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+
+        if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+          // الاشتراك في قناة الإشعارات العامة
+          await FirebaseMessaging.instance.subscribeToTopic('all_users');
+          debugPrint('✅ Subscribed to FCM all_users topic');
+        }
+
+        // ✅ حفظ توكن الهاتف في قاعدة البيانات (بعد التأكد من تسجيل الدخول)
+        if (data.hasAccount && data.currentAccountId != null) {
+          final token = await FirebaseMessaging.instance.getToken();
+          if (token != null) {
+            await Supabase.instance.client.from('device_tokens').upsert({
+              'account_id': data.currentAccountId,
+              'fcm_token': token,
+            }, onConflict: 'account_id,fcm_token');
+            debugPrint('✅ FCM Token saved for account: ${data.currentAccountId}');
+          }
+        }
+      } catch (e) {
+        debugPrint('❌ FCM setup error: $e');
+      }
+    });
 
     // 7. تحميل البيانات في الخلفية
     Future.microtask(() async {
