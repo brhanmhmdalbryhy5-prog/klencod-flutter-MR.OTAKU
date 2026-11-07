@@ -66,7 +66,6 @@ class AppData extends ChangeNotifier {
 
   final Set<String> _viewedStoryIds = {};
 
-  // ✅ المنشورات المشاهدة
   final Set<String> _viewedPostIds = {};
   bool _viewedPostsLoaded = false;
 
@@ -226,7 +225,6 @@ class AppData extends ChangeNotifier {
     } catch (e) { return false; }
   }
 
-  // ✅ دالة loadData المعدلة: عرض الواجهة فوراً وجلب البيانات بالتوازي
   Future<void> loadData() async {
     news = LocalCache.loadList('news');
     players = LocalCache.loadList('players');
@@ -466,11 +464,16 @@ class AppData extends ChangeNotifier {
   Future<void> loadPrivateMessages(int otherUserId) async {
     if (currentAccountId == null) return;
     try {
-      final result = await supabase.from('private_messages').select().or('and(sender_id.eq.$currentAccountId,receiver_id.eq.$otherUserId),and(sender_id.eq.$otherUserId,receiver_id.eq.$currentAccountId)').order('created_at', ascending: true);
+      final result = await supabase.from('private_messages')
+          .select()
+          .or('and(sender_id.eq.$currentAccountId,receiver_id.eq.$otherUserId),and(sender_id.eq.$otherUserId,receiver_id.eq.$currentAccountId)')
+          .order('created_at', ascending: false); // ✅ التعديل هنا: الأحدث أولاً
       privateMessages = List<Map<String, dynamic>>.from(result);
       await supabase.from('private_messages').update({'is_read': true}).eq('receiver_id', currentAccountId!).eq('sender_id', otherUserId).eq('is_read', false);
       unreadMessageCounts.remove(otherUserId); notifyListeners();
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Load private messages error: $e');
+    }
   }
 
   Future<bool> sendPrivateMessage(int receiverId, String message) async {
