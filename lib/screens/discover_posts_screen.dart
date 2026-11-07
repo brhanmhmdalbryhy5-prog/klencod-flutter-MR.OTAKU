@@ -7,6 +7,8 @@ import '../core/helpers.dart';
 import '../core/theme_manager.dart';
 import '../data/app_data.dart';
 import 'social_screens.dart';
+import 'post_info_sheet.dart';  // ✅ لاستدعاء PostInfoSheet
+import 'social_screens.dart';   // ✅ لاستدعاء PostCommentsSheet و UserProfilePage
 
 class DiscoverPostsScreen extends StatefulWidget {
   final AppData data;
