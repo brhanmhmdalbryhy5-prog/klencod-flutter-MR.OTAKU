@@ -222,43 +222,73 @@ class AppData extends ChangeNotifier {
     } catch (e) { return false; }
   }
 
-  // ✅ دالة loadData المعدلة: عرض الواجهة فوراً
+  // ✅ دالة loadData المعدلة: عرض الواجهة فوراً وجلب البيانات بالتوازي
   Future<void> loadData() async {
+    // 1. قراءة البيانات من التخزين المحلي (سريع جداً)
     news = LocalCache.loadList('news');
     players = LocalCache.loadList('players');
     latest = LocalCache.loadList('latest');
     
-    // ✅ إيقاف التحميل فوراً وعرض الواجهة
     loading = false; 
     notifyListeners(); 
 
+    // 2. جلب كل البيانات من Supabase بالتوازي (أسرع بكثير)
     try {
-      final results = await Future.wait([
-        supabase.from('news').select().order('created_at', ascending: false),
-        supabase.from('players').select().order('points', ascending: false),
-        supabase.from('latest').select().order('created_at', ascending: false),
+      await Future.wait([
+        _fetchNews(),
+        _fetchPlayers(),
+        _fetchLatest(),
+        _fetchPosts(), // جلب المنشورات أيضاً بالتوازي
       ]);
-      news = List<Map<String, dynamic>>.from(results[0]);
-      players = List<Map<String, dynamic>>.from(results[1]);
-      latest = List<Map<String, dynamic>>.from(results[2]);
-
-      LocalCache.saveList('news', news);
-      LocalCache.saveList('players', players);
-      LocalCache.saveList('latest', latest);
-
+      
+      // تحديث الواجهة بعد اكتمال جميع الطلبات
       notifyListeners();
-
+      
+      // 3. باقي البيانات (إشعارات، إعجابات، إلخ) في الخلفية
       _loadBackgroundData();
     } catch (e) { 
       debugPrint('Load data error: $e'); 
     }
   }
 
+  // ✅ دوال مساعدة لجلب كل نوع من البيانات بالتوازي
+  Future<void> _fetchNews() async {
+    try {
+      final result = await supabase.from('news').select().order('created_at', ascending: false);
+      news = List<Map<String, dynamic>>.from(result);
+      LocalCache.saveList('news', news);
+    } catch (e) { debugPrint('Fetch news error: $e'); }
+  }
+
+  Future<void> _fetchPlayers() async {
+    try {
+      final result = await supabase.from('players').select().order('points', ascending: false);
+      players = List<Map<String, dynamic>>.from(result);
+      LocalCache.saveList('players', players);
+    } catch (e) { debugPrint('Fetch players error: $e'); }
+  }
+
+  Future<void> _fetchLatest() async {
+    try {
+      final result = await supabase.from('latest').select().order('created_at', ascending: false);
+      latest = List<Map<String, dynamic>>.from(result);
+      LocalCache.saveList('latest', latest);
+    } catch (e) { debugPrint('Fetch latest error: $e'); }
+  }
+
+  Future<void> _fetchPosts() async {
+    try {
+      final result = await supabase.from('posts').select().order('created_at', ascending: false);
+      posts = List<Map<String, dynamic>>.from(result);
+      await _loadPostInteractions();
+    } catch (e) { debugPrint('Fetch posts error: $e'); }
+  }
+
   Future<void> _loadBackgroundData() async {
     try {
       await loadLikes(); await loadCommentCounts(); await loadNotifications();
       await loadPoll(); await loadQuizQuestions(); await loadImportantNews();
-      await loadGallery(); await loadPosts(); await loadUserRewards();
+      await loadGallery(); await loadUserRewards();
       await loadUnreadMessagesCount(); await loadSavedPosts();
       await loadFollowStats(); await loadCommentLikes(); await loadStories();
       if (_isAdmin) {
