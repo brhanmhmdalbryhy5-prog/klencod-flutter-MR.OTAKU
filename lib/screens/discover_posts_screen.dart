@@ -31,6 +31,10 @@ class _DiscoverPostsScreenState extends State<DiscoverPostsScreen> {
       body: AnimatedBuilder(
         animation: widget.data,
         builder: (context, _) {
+          // ✅ إظهار دائرة التحميل أثناء تحميل البيانات
+          if (widget.data.loading && widget.data.posts.isEmpty) {
+            return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+          }
           final posts = widget.data.posts;
           if (posts.isEmpty) {
             return const Center(child: Text('لا توجد منشورات بعد', style: TextStyle(color: Colors.white)));
@@ -85,7 +89,7 @@ class _TikTokPostState extends State<TikTokPost> {
     if (mounted) setState(() => _rankBadge = badge);
   }
 
-  void _handleDoubleTap() async {
+  Future<void> _handleDoubleTap() async {
     final liked = widget.data.likedPosts.contains(widget.post['id'].toString());
     if (!liked) {
       await widget.data.togglePostLike(widget.post['id']);
@@ -143,26 +147,45 @@ class _TikTokPostState extends State<TikTokPost> {
             ),
           ),
 
-          // قلب كبير متحرك
+          // ✅ قلب كبير متحرك (تصميم محسّن)
           if (_showHeart)
-            const Center(
-              child: Icon(Icons.favorite, size: 120, color: Colors.white),
+            TweenAnimationBuilder(
+              tween: Tween<double>(begin: 0.5, end: 1.2),
+              duration: const Duration(milliseconds: 300),
+              builder: (context, double scale, child) {
+                return Transform.scale(
+                  scale: scale,
+                  child: Center(
+                    child: Icon(
+                      Icons.favorite,
+                      size: 150,
+                      color: Colors.white.withOpacity(0.9),
+                      shadows: [
+                        Shadow(
+                          color: Colors.red.withOpacity(0.5),
+                          blurRadius: 20,
+                          offset: const Offset(0, 0),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
 
-          // زر الرجوع في الأعلى
+          // زر الرجوع في الأعلى + كلمة استكشف
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween, // ✅ إصلاح المحاذاة
                 children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
                     onPressed: () => Navigator.pop(context),
                   ),
-                  const Spacer(),
                   const Text('استكشف', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                  const Spacer(),
-                  const SizedBox(width: 48),
+                  const SizedBox(width: 48), // مساحة فارغة للحفاظ على التوازن
                 ],
               ),
             ),
@@ -218,7 +241,10 @@ class _TikTokPostState extends State<TikTokPost> {
                   icon: liked ? Icons.favorite : Icons.favorite_border,
                   color: liked ? Colors.red : Colors.white,
                   label: '${data.postLikeCounts[postId] ?? 0}',
-                  onTap: () => data.togglePostLike(postId),
+                  onTap: () async {
+                    await data.togglePostLike(postId);
+                    setState(() {}); // تحديث فوري للعداد
+                  },
                 ),
                 const SizedBox(height: 16),
                 _buildActionButton(
@@ -232,7 +258,10 @@ class _TikTokPostState extends State<TikTokPost> {
                   icon: saved ? Icons.bookmark : Icons.bookmark_border,
                   color: saved ? Colors.amber : Colors.white,
                   label: 'حفظ',
-                  onTap: () => data.toggleSavePost(postId),
+                  onTap: () async {
+                    await data.toggleSavePost(postId);
+                    setState(() {}); // تحديث فوري للحفظ
+                  },
                 ),
                 const SizedBox(height: 16),
                 _buildActionButton(
