@@ -24,7 +24,7 @@ class _DiscoverPostsScreenState extends State<DiscoverPostsScreen> {
   @override
   void initState() {
     super.initState();
-    widget.data.loadViewedPosts(); // ✅ تحميل المنشورات المشاهدة
+    widget.data.loadViewedPosts();
   }
 
   @override
@@ -41,7 +41,7 @@ class _DiscoverPostsScreenState extends State<DiscoverPostsScreen> {
             return const Center(child: CircularProgressIndicator(color: AppColors.gold));
           }
           
-          final posts = widget.data.unviewedPosts; // ✅ تصفية المنشورات المشاهدة
+          final posts = widget.data.unviewedPosts;
           
           if (posts.isEmpty) {
             return Center(
@@ -75,7 +75,7 @@ class _DiscoverPostsScreenState extends State<DiscoverPostsScreen> {
             onPageChanged: (index) {
               setState(() => _currentIndex = index);
               widget.data.incrementPostView(posts[index]['id']);
-              widget.data.markPostViewed(posts[index]['id']); // ✅ حفظ المنشور كمشاهد
+              widget.data.markPostViewed(posts[index]['id']);
             },
             itemBuilder: (context, index) {
               return TikTokPost(
@@ -148,10 +148,17 @@ class _TikTokPostState extends State<TikTokPost> {
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // الخلفية (صورة أو فيديو)
           if (vid.isNotEmpty)
             Center(child: TikTokVideo(url: vid, isActive: widget.isActive))
           else if (img.isNotEmpty)
-            CachedNetworkImage(imageUrl: img, fit: BoxFit.cover)
+            Center(
+              child: CachedNetworkImage(
+                imageUrl: img, 
+                fit: BoxFit.contain, // ✅ الصورة كاملة في المنتصف
+                width: double.infinity,
+              ),
+            )
           else
             Container(
               color: AppColors.cardBlack,
@@ -163,6 +170,7 @@ class _TikTokPostState extends State<TikTokPost> {
               ),
             ),
 
+          // تعتيم سفلي
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -175,7 +183,7 @@ class _TikTokPostState extends State<TikTokPost> {
             ),
           ),
 
-          // ✅ قلب كبير متحرك (تصميم محسّن)
+          // قلب كبير متحرك
           if (_showHeart)
             TweenAnimationBuilder(
               tween: Tween<double>(begin: 0.5, end: 1.2),
@@ -189,11 +197,7 @@ class _TikTokPostState extends State<TikTokPost> {
                       size: 150,
                       color: Colors.white.withOpacity(0.9),
                       shadows: [
-                        Shadow(
-                          color: Colors.red.withOpacity(0.5),
-                          blurRadius: 20,
-                          offset: const Offset(0, 0),
-                        ),
+                        Shadow(color: Colors.red.withOpacity(0.5), blurRadius: 20, offset: const Offset(0, 0)),
                       ],
                     ),
                   ),
@@ -201,23 +205,25 @@ class _TikTokPostState extends State<TikTokPost> {
               },
             ),
 
+          // زر الرجوع + كلمة استكشف
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween, // ✅ إصلاح المحاذاة
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
                     onPressed: () => Navigator.pop(context),
                   ),
                   const Text('استكشف', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 48), // مساحة فارغة للحفاظ على التوازن
+                  const SizedBox(width: 48),
                 ],
               ),
             ),
           ),
 
+          // معلومات المنشور (الأسفل يسار)
           Positioned(
             bottom: 20,
             left: 16,
@@ -257,6 +263,7 @@ class _TikTokPostState extends State<TikTokPost> {
             ),
           ),
 
+          // أزرار التفاعل (الأسفل يمين)
           Positioned(
             bottom: 20,
             right: 12,
@@ -268,7 +275,7 @@ class _TikTokPostState extends State<TikTokPost> {
                   label: '${data.postLikeCounts[postId] ?? 0}',
                   onTap: () async {
                     await data.togglePostLike(postId);
-                    setState(() {}); // تحديث فوري للعداد
+                    setState(() {});
                   },
                 ),
                 const SizedBox(height: 16),
@@ -285,7 +292,7 @@ class _TikTokPostState extends State<TikTokPost> {
                   label: 'حفظ',
                   onTap: () async {
                     await data.toggleSavePost(postId);
-                    setState(() {}); // تحديث فوري للحفظ
+                    setState(() {});
                   },
                 ),
                 const SizedBox(height: 16),
@@ -325,7 +332,7 @@ class _TikTokPostState extends State<TikTokPost> {
 }
 
 // =======================================================
-// مشغل فيديو لتيك توك (يعمل فقط إذا كان النشط)
+// مشغل فيديو لتيك توك
 // =======================================================
 class TikTokVideo extends StatefulWidget {
   final String url;
