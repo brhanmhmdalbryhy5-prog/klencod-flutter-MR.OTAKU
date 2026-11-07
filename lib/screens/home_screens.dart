@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/colors.dart';
 import '../core/helpers.dart';
@@ -56,7 +57,7 @@ class _HomePageState extends State<HomePage> {
       HomeTab(data: widget.data),
       NewsPage(data: widget.data),
       PostsPage(data: widget.data),
-      ActivityInboxScreen(data: widget.data), // ✅ التفاعلات
+      ActivityInboxScreen(data: widget.data),
       ServicesPage(data: widget.data),
       ProfilePage(data: widget.data),
     ];
@@ -68,13 +69,9 @@ class _HomePageState extends State<HomePage> {
       body: Stack(
         children: [
           IndexedStack(index: index, children: pages),
-          
-          // ✅ شريط التحميل الخطي
           if (widget.data.loading)
             Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
+              top: 0, left: 0, right: 0,
               child: LinearProgressIndicator(
                 backgroundColor: Colors.transparent,
                 valueColor: AlwaysStoppedAnimation<Color>(primary),
@@ -116,7 +113,7 @@ class _HomePageState extends State<HomePage> {
 }
 
 // =======================================================
-// 2. الرئيسية
+// 2. الرئيسية (مع زر "عن المطور")
 // =======================================================
 class HomeTab extends StatefulWidget {
   final AppData data;
@@ -143,12 +140,149 @@ class _HomeTabState extends State<HomeTab> {
   @override
   void dispose() { timer?.cancel(); controller.dispose(); super.dispose(); }
 
+  void _showAboutDeveloper(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.cardBlack,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.gold, width: 2),
+        ),
+        title: Column(
+          children: [
+            const CircleAvatar(
+              radius: 40,
+              backgroundColor: AppColors.gold,
+              child: Icon(Icons.person, size: 45, color: Colors.black),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'صانع التطبيق',
+              style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 22),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'برهان محمد البريهي',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'العمر: 18 سنة',
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: Colors.grey),
+              const SizedBox(height: 8),
+              const Text(
+                'عن التطبيق',
+                style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'MR OTAKU هو تطبيق مخصص لمجتمع الأنمي، يهدف إلى جمع محبي الأنمي في مكان واحد لمشاركة الأخبار، المنشورات، الصور، والمسابقات. التطبيق في تطور مستمر، ونرحب بملاحظاتكم واقتراحاتكم.',
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: Colors.grey),
+              const SizedBox(height: 8),
+              const Text(
+                'للتواصل',
+                style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _contactButton(
+                    icon: Icons.message,
+                    label: 'واتساب',
+                    color: Colors.green,
+                    onTap: () async {
+                      final url = Uri.parse('https://wa.me/967780483974');
+                      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                        if (context.mounted) showSnack(context, 'تعذر فتح واتساب');
+                      }
+                    },
+                  ),
+                  _contactButton(
+                    icon: Icons.phone,
+                    label: 'اتصال',
+                    color: Colors.blue,
+                    onTap: () async {
+                      final url = Uri.parse('tel:+967780483974');
+                      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                        if (context.mounted) showSnack(context, 'تعذر فتح تطبيق الاتصال');
+                      }
+                    },
+                  ),
+                  _contactButton(
+                    icon: Icons.email,
+                    label: 'بريد',
+                    color: Colors.red,
+                    onTap: () async {
+                      final url = Uri.parse('mailto:example@gmail.com');
+                      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                        if (context.mounted) showSnack(context, 'تعذر فتح تطبيق البريد');
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إغلاق', style: TextStyle(color: AppColors.gold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _contactButton({required IconData icon, required String label, required Color color, required VoidCallback onTap}) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(30),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              shape: BoxShape.circle,
+              border: Border.all(color: color, width: 2),
+            ),
+            child: Icon(icon, color: color, size: 28),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(color: color, fontSize: 12)),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('مستر أوتاكو', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.info_outline, color: AppColors.gold),
+            tooltip: 'عن المطور',
+            onPressed: () => _showAboutDeveloper(context),
+          ),
           IconButton(onPressed: () => showSearch(context: context, delegate: CustomSearchDelegate(widget.data)), icon: const Icon(Icons.search)),
           IconButton(
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => NotificationsPage(data: widget.data))).then((_) => widget.data.loadNotifications()),
@@ -262,7 +396,7 @@ class _HomeTabState extends State<HomeTab> {
 }
 
 // =======================================================
-// بطاقة الاستطلاع
+// 3. بطاقة الاستطلاع
 // =======================================================
 class PollCard extends StatelessWidget {
   final AppData data;
@@ -341,7 +475,7 @@ class PollCard extends StatelessWidget {
 }
 
 // =======================================================
-// البحث
+// 4. البحث
 // =======================================================
 class CustomSearchDelegate extends SearchDelegate {
   final AppData data;
@@ -424,9 +558,8 @@ class _MiniStat extends StatelessWidget {
     Text(title, style: const TextStyle(color: Colors.white70)),
   ]);
 }
-
 // =======================================================
-// 3. صفحة حسابي (مع زر الرسائل)
+// 5. صفحة حسابي
 // =======================================================
 class ProfilePage extends StatefulWidget {
   final AppData data;
@@ -574,7 +707,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ServiceTile(icon: Icons.flag, title: 'البلاغات', subtitle: '${widget.data.complaints.where((c) => c['status'] == 'pending').length} بلاغ معلق', colorIndex: 4, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManageComplaintsPage(data: widget.data)))),
                     ServiceTile(icon: Icons.campaign, title: 'إدارة الإشعارات', subtitle: 'إرسال إشعارات وإعلانات', colorIndex: 9, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminNotificationsScreen(data: widget.data)))),
                   ],
-                  ServiceTile(icon: Icons.message, title: 'الرسائل', subtitle: 'تواصل مع جميع المستخدمين', colorIndex: 8, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PrivateMessagesPage(data: widget.data)))), // ✅ زر الرسائل
+                  ServiceTile(icon: Icons.message, title: 'الرسائل', subtitle: 'تواصل مع جميع المستخدمين', colorIndex: 8, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PrivateMessagesPage(data: widget.data)))),
                   ServiceTile(icon: Icons.palette, title: 'الثيمات', subtitle: 'تغيير لون التطبيق', colorIndex: 6, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ThemePickerPage()))),
                   ServiceTile(icon: Icons.volume_up, title: 'أصوات التطبيق', subtitle: 'الاهتزاز والصوت', colorIndex: 5, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundsPage()))),
                 ]),
@@ -624,7 +757,7 @@ class _ProfilePageState extends State<ProfilePage> {
 }
 
 // =======================================================
-// 4. صفحة إنشاء منشور
+// 6. صفحة إنشاء منشور
 // =======================================================
 class CreatePostPage extends StatefulWidget {
   final AppData data;
@@ -754,7 +887,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
 }
 
 // =======================================================
-// 5. الخدمات
+// 7. الخدمات
 // =======================================================
 class ServicesPage extends StatelessWidget {
   final AppData data;
@@ -801,7 +934,7 @@ class ServiceTile extends StatelessWidget {
 }
 
 // =======================================================
-// 6. إحصائياتي
+// 8. إحصائياتي
 // =======================================================
 class MyStatsPage extends StatelessWidget {
   final AppData data;
@@ -891,7 +1024,7 @@ class _SoundsPageState extends State<SoundsPage> {
 }
 
 // =======================================================
-// 7. الأخبار + التعليقات
+// 9. الأخبار + التعليقات
 // =======================================================
 class NewsPage extends StatelessWidget {
   final AppData data;
@@ -944,7 +1077,7 @@ class NewsDetailsPage extends StatelessWidget {
 }
 
 // =======================================================
-// تعليقات الأخبار
+// 10. تعليقات الأخبار
 // =======================================================
 class CommentsPage extends StatefulWidget {
   final AppData data; final dynamic newsId;
@@ -969,9 +1102,7 @@ class _CommentsPageState extends State<CommentsPage> {
   Future<void> send() async {
     if (controller.text.trim().isEmpty && _image == null) return;
     await playClickSound();
-    final ok = await widget.data.addComment(
-      widget.newsId, widget.data.currentDisplayName, controller.text, replyTo: _replyTo, replyToId: _replyToId, imageFile: _image
-    );
+    final ok = await widget.data.addComment(widget.newsId, widget.data.currentDisplayName, controller.text, replyTo: _replyTo, replyToId: _replyToId, imageFile: _image);
     if (!mounted) return;
     if (ok) { controller.clear(); setState(() { _replyTo = null; _replyToId = null; _image = null; }); await load(); }
   }
@@ -1042,6 +1173,9 @@ class _CommentsPageState extends State<CommentsPage> {
   }
 }
 
+// =======================================================
+// 11. الإشعارات
+// =======================================================
 class NotificationsPage extends StatelessWidget {
   final AppData data;
   const NotificationsPage({super.key, required this.data});
