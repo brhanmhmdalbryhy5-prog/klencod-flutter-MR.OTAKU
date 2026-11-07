@@ -5,7 +5,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:speech_to_text/speech_to_text.dart';
 
 import '../core/colors.dart';
 import '../core/helpers.dart';
@@ -358,77 +357,14 @@ class PollCard extends StatelessWidget {
 }
 
 // =======================================================
-// البحث (مع البحث الصوتي)
+// البحث (بدون صوت)
 // =======================================================
 class CustomSearchDelegate extends SearchDelegate {
   final AppData data;
   CustomSearchDelegate(this.data);
 
   @override
-  List<Widget>? buildActions(BuildContext context) => [
-    if (query.isNotEmpty) IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
-    IconButton(
-      icon: const Icon(Icons.mic, color: AppColors.gold),
-      onPressed: () => _startVoiceSearch(context),
-      tooltip: 'البحث الصوتي',
-    ),
-  ];
-
-  Future<void> _startVoiceSearch(BuildContext context) async {
-    final SpeechToText speech = SpeechToText();
-    bool available = await speech.initialize(
-      onStatus: (status) {
-        if (status == 'done' || status == 'notListening') {
-          if (speech.isListening) speech.stop();
-        }
-      },
-      onError: (error) { debugPrint('Voice error: $error'); },
-    );
-    if (available) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          title: const Text('جاري الاستماع...'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.mic, size: 60, color: Colors.red),
-              const SizedBox(height: 16),
-              const Text('تحدث الآن...'),
-              const SizedBox(height: 8),
-              StreamBuilder(
-                stream: speech.onResult,
-                builder: (context, snapshot) {
-                  if (snapshot.hasData) {
-                    final text = snapshot.data!.recognizedWords;
-                    if (text.isNotEmpty) query = text;
-                    return Text('قلت: "$text"', style: const TextStyle(fontStyle: FontStyle.italic));
-                  }
-                  return const SizedBox();
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () { speech.stop(); Navigator.pop(context); },
-              child: const Text('إيقاف'),
-            ),
-          ],
-        ),
-      );
-      await speech.listen(onResult: (result) {
-        if (result.finalResult) {
-          query = result.recognizedWords;
-          if (Navigator.of(context).canPop()) Navigator.pop(context);
-        }
-      });
-    } else {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('البحث الصوتي غير متاح على هذا الجهاز')));
-    }
-  }
-
+  List<Widget>? buildActions(BuildContext context) => [if (query.isNotEmpty) IconButton(icon: const Icon(Icons.clear), onPressed: () => query = '')];
   @override
   Widget? buildLeading(BuildContext context) => IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
   @override
@@ -506,7 +442,7 @@ class _MiniStat extends StatelessWidget {
 }
 
 // =======================================================
-// 3. صفحة حسابي (مع الدرع)
+// 3. صفحة حسابي
 // =======================================================
 class ProfilePage extends StatefulWidget {
   final AppData data;
@@ -611,7 +547,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     IconButton(onPressed: _changeName, icon: Icon(Icons.edit, size: 18, color: primary)),
                   ]),
                   
-                  // ✅ عرض ID والدرع
                   Column(children: [
                     Text('ID: ${widget.data.currentAccountId} | ${widget.data.currentLevel}'),
                     if (_myRankBadge != null) 
