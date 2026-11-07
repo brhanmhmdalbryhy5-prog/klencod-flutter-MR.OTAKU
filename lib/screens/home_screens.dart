@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:speech_to_text/speech_to_text.dart'; // ✅ جديد
+import 'package:speech_to_text/speech_to_text.dart';
 
 import '../core/colors.dart';
 import '../core/helpers.dart';
@@ -506,7 +506,7 @@ class _MiniStat extends StatelessWidget {
 }
 
 // =======================================================
-// 3. صفحة حسابي
+// 3. صفحة حسابي (مع الدرع)
 // =======================================================
 class ProfilePage extends StatefulWidget {
   final AppData data;
@@ -518,6 +518,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   int _tab = 0;
   int _totalLikes = 0;
+  String? _myRankBadge;
 
   @override
   void initState() {
@@ -533,6 +534,9 @@ class _ProfilePageState extends State<ProfilePage> {
         params: {'target_user_id': widget.data.currentAccountId}
       );
       if (mounted) setState(() => _totalLikes = likes as int);
+      
+      final badge = await widget.data.getUserRankBadge(widget.data.currentAccountId!);
+      if (mounted) setState(() => _myRankBadge = badge);
     } catch (e) {
       debugPrint('Error loading likes: $e');
     }
@@ -606,7 +610,25 @@ class _ProfilePageState extends State<ProfilePage> {
                     Text(widget.data.currentDisplayName, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primary)),
                     IconButton(onPressed: _changeName, icon: Icon(Icons.edit, size: 18, color: primary)),
                   ]),
-                  Text('ID: ${widget.data.currentAccountId} | ${widget.data.currentLevel}'),
+                  
+                  // ✅ عرض ID والدرع
+                  Column(children: [
+                    Text('ID: ${widget.data.currentAccountId} | ${widget.data.currentLevel}'),
+                    if (_myRankBadge != null) 
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.gold.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.gold, width: 1),
+                          ),
+                          child: Text(_myRankBadge!, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.gold)),
+                        ),
+                      ),
+                  ]),
+                  
                   const SizedBox(height: 8),
 
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
