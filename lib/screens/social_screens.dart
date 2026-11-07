@@ -32,7 +32,7 @@ class PostsPage extends StatelessWidget {
 }
 
 // =======================================================
-// بطاقة المنشور
+// بطاقة المنشور (مع درع المستخدم)
 // =======================================================
 class PostCard extends StatefulWidget {
   final AppData data; final Map<String, dynamic> post;
@@ -43,6 +43,18 @@ class PostCard extends StatefulWidget {
 
 class _PostCardState extends State<PostCard> {
   bool _isAnimating = false;
+  String? _rankBadge;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRank();
+  }
+
+  Future<void> _loadRank() async {
+    final badge = await widget.data.getUserRankBadge(parseInt(widget.post['account_id']));
+    if (mounted) setState(() => _rankBadge = badge);
+  }
 
   void _handleLike() async {
     setState(() => _isAnimating = true);
@@ -102,7 +114,11 @@ class _PostCardState extends State<PostCard> {
         GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => UserProfilePage(data: data, accountId: parseInt(post['account_id']), userName: name))), child: CircleAvatar(backgroundColor: primary, backgroundImage: avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null, child: avatar.isEmpty ? const Icon(Icons.person, color: Colors.white) : null)),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.getColorForName(name))), if (isVerified) ...[const SizedBox(width: 4), const Icon(Icons.verified, color: Colors.blue, size: 16)]]),
+          Row(children: [
+            Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.getColorForName(name))), 
+            if (isVerified) ...[const SizedBox(width: 4), const Icon(Icons.verified, color: Colors.blue, size: 16)],
+            if (_rankBadge != null) ...[const SizedBox(width: 4), Text(_rankBadge!, style: const TextStyle(fontSize: 14))],
+          ]),
           Text(time, style: const TextStyle(fontSize: 11, color: Colors.grey)),
         ])),
         PopupMenuButton(itemBuilder: (_) => [
