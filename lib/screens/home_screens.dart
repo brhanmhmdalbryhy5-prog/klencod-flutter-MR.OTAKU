@@ -16,6 +16,8 @@ import 'admin_stats.dart';
 import 'followers_page.dart';
 import 'stories_page.dart';
 import 'games_screens.dart';
+import 'admin_notifications_screen.dart';
+import 'activity_inbox_screen.dart';
 
 // =======================================================
 // 1. الحاوية الرئيسية
@@ -54,7 +56,7 @@ class _HomePageState extends State<HomePage> {
       HomeTab(data: widget.data),
       NewsPage(data: widget.data),
       PostsPage(data: widget.data),
-      PrivateMessagesPage(data: widget.data),
+      ActivityInboxScreen(data: widget.data), // ✅ صندوق التفاعلات الجديد
       ServicesPage(data: widget.data),
       ProfilePage(data: widget.data),
     ];
@@ -79,10 +81,11 @@ class _HomePageState extends State<HomePage> {
             label: 'الأخبار',
           ),
           const NavigationDestination(icon: Icon(Icons.post_add), selectedIcon: Icon(Icons.post_add), label: 'المنشورات'),
+          // ✅ تم استبدال "الرسائل" بـ "التفاعلات"
           NavigationDestination(
-            icon: Badge(isLabelVisible: totalUnreadMessages > 0, backgroundColor: Colors.red, label: Text('$totalUnreadMessages'), child: const Icon(Icons.forum_outlined)),
-            selectedIcon: const Icon(Icons.forum),
-            label: 'الرسائل',
+            icon: Badge(isLabelVisible: totalUnreadMessages > 0, backgroundColor: Colors.red, label: Text('$totalUnreadMessages'), child: const Icon(Icons.notifications_active_outlined)),
+            selectedIcon: const Icon(Icons.notifications_active),
+            label: 'التفاعلات',
           ),
           NavigationDestination(
             icon: Badge(isLabelVisible: widget.data.hasNewQuiz || widget.data.hasNewGallery, backgroundColor: primary, child: const Icon(Icons.apps_outlined)),
@@ -97,7 +100,7 @@ class _HomePageState extends State<HomePage> {
 }
 
 // =======================================================
-// 2. الرئيسية (مع Stories + الاستطلاع + الأخبار + المتصدر)
+// 2. الرئيسية
 // =======================================================
 class HomeTab extends StatefulWidget {
   final AppData data;
@@ -243,7 +246,7 @@ class _HomeTabState extends State<HomeTab> {
 }
 
 // =======================================================
-// ✅ بطاقة الاستطلاع
+// بطاقة الاستطلاع
 // =======================================================
 class PollCard extends StatelessWidget {
   final AppData data;
@@ -542,7 +545,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ]),
                   Text('ID: ${widget.data.currentAccountId} | ${widget.data.currentLevel}'),
                   const SizedBox(height: 8),
-                  
+
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     GestureDetector(onTap: () => setState(() => _tab = 0), child: _statTikTok('${myPosts.length}', 'منشورات')),
                     Container(width: 1, height: 30, color: Colors.grey, margin: const EdgeInsets.symmetric(horizontal: 12)),
@@ -579,6 +582,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     ServiceTile(icon: Icons.admin_panel_settings, title: 'لوحة الإدارة', subtitle: 'إدارة التطبيق', colorIndex: 11, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminPanelPage(data: widget.data)))),
                     ServiceTile(icon: Icons.bar_chart, title: 'إحصائيات المدير', subtitle: 'أرقام مفصلة', colorIndex: 0, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminStatsPage(data: widget.data)))),
                     ServiceTile(icon: Icons.flag, title: 'البلاغات', subtitle: '${widget.data.complaints.where((c) => c['status'] == 'pending').length} بلاغ معلق', colorIndex: 4, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManageComplaintsPage(data: widget.data)))),
+                    // ✅ زر إدارة الإشعارات الجديد
+                    ServiceTile(icon: Icons.campaign, title: 'إدارة الإشعارات', subtitle: 'إرسال إشعارات وإعلانات', colorIndex: 9, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminNotificationsScreen(data: widget.data)))),
                   ],
                   ServiceTile(icon: Icons.palette, title: 'الثيمات', subtitle: 'تغيير لون التطبيق', colorIndex: 6, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ThemePickerPage()))),
                   ServiceTile(icon: Icons.volume_up, title: 'أصوات التطبيق', subtitle: 'الاهتزاز والصوت', colorIndex: 5, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SoundsPage()))),
@@ -629,7 +634,7 @@ class _ProfilePageState extends State<ProfilePage> {
 }
 
 // =======================================================
-// 4. صفحة إنشاء منشور (TikTok-style)
+// 4. صفحة إنشاء منشور
 // =======================================================
 class CreatePostPage extends StatefulWidget {
   final AppData data;
@@ -949,7 +954,7 @@ class NewsDetailsPage extends StatelessWidget {
 }
 
 // =======================================================
-// ✅ تعليقات الأخبار (مُصلحة: الأسماء والأيقونات تظهر للجميع)
+// تعليقات الأخبار
 // =======================================================
 class CommentsPage extends StatefulWidget {
   final AppData data; final dynamic newsId;
@@ -964,7 +969,7 @@ class _CommentsPageState extends State<CommentsPage> {
   List<Map<String, dynamic>> comments = [];
   bool loading = true;
   String? _replyTo;
-  String? _replyToId; // 👈 أضف هذا السطر
+  String? _replyToId;
   File? _image;
 
   @override
@@ -979,7 +984,7 @@ class _CommentsPageState extends State<CommentsPage> {
       widget.data.currentDisplayName, 
       controller.text, 
       replyTo: _replyTo, 
-      replyToId: _replyToId, // 👈 تمرير المعرف
+      replyToId: _replyToId,
       imageFile: _image
     );
     if (!mounted) return;
@@ -987,7 +992,7 @@ class _CommentsPageState extends State<CommentsPage> {
       controller.clear(); 
       setState(() { 
         _replyTo = null; 
-        _replyToId = null; // 👈 مسح المعرف
+        _replyToId = null;
         _image = null; 
       }); 
       await load(); 
@@ -996,7 +1001,7 @@ class _CommentsPageState extends State<CommentsPage> {
   void _startReply(String userName, String commentId) { 
     setState(() { 
       _replyTo = userName; 
-      _replyToId = commentId; // 👈 حفظ المعرف
+      _replyToId = commentId;
     }); 
     focusNode.requestFocus(); 
   }
@@ -1054,7 +1059,7 @@ class _CommentsPageState extends State<CommentsPage> {
               Expanded(child: Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.getColorForName(name)))),
               IconButton(
                 icon: const Icon(Icons.reply, color: AppColors.gold, size: 20), 
-                onPressed: () => _startReply(name, cid.toString()) // 👈 تمرير cid
+                onPressed: () => _startReply(name, cid.toString())
               ),
             ]),
             const SizedBox(height: 6),
