@@ -11,6 +11,7 @@ import '../core/colors.dart';
 import '../core/helpers.dart';
 import '../core/theme_manager.dart';
 import '../data/app_data.dart';
+import 'post_info_sheet.dart';
 
 // =======================================================
 // صفحة المنشورات
@@ -31,7 +32,7 @@ class PostsPage extends StatelessWidget {
 }
 
 // =======================================================
-// بطاقة المنشور (مع زر تنزيل محسّن)
+// بطاقة المنشور
 // =======================================================
 class PostCard extends StatefulWidget {
   final AppData data; final Map<String, dynamic> post;
@@ -56,7 +57,6 @@ class _PostCardState extends State<PostCard> {
     showSnack(context, 'تم نسخ المنشور!');
   }
 
-  /// ✅ تنزيل الصورة مباشرة للمعرض (باستخدام gal)
   Future<void> _downloadImage() async {
     final img = clean(widget.post['image_url']);
     if (img.isEmpty) return;
@@ -142,6 +142,14 @@ class _PostCardState extends State<PostCard> {
         Text('${data.postCommentCounts[postId] ?? 0}'),
         const Spacer(),
         IconButton(onPressed: () => data.toggleSavePost(postId), icon: Icon(saved ? Icons.bookmark : Icons.bookmark_border, color: saved ? Colors.amber : AppColors.gold)),
+        IconButton(
+          onPressed: () {
+            data.incrementPostView(postId);
+            showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => PostInfoSheet(data: data, post: post));
+          },
+          icon: const Icon(Icons.bar_chart, color: AppColors.gold, size: 22),
+          tooltip: 'معلومات المنشور',
+        ),
         IconButton(onPressed: _sharePost, icon: const Icon(Icons.share_outlined, color: AppColors.gold, size: 22)),
       ]),
     ])));
@@ -428,7 +436,7 @@ class _ChatScreenState extends State<ChatScreen> {
 }
 
 // =======================================================
-// المعرض (مع زر تنزيل محسّن)
+// المعرض
 // =======================================================
 class GalleryPage extends StatefulWidget {
   final AppData data;
