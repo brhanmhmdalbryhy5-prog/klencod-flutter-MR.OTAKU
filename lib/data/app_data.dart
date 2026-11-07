@@ -222,9 +222,7 @@ class AppData extends ChangeNotifier {
     } catch (e) { return false; }
   }
 
-  // ✅ دالة loadData المعدلة للتحميل في الخلفية
   Future<void> loadData() async {
-    // 1. قراءة البيانات من التخزين المحلي أولاً (لتفتح الشاشة فوراً)
     news = LocalCache.loadList('news');
     players = LocalCache.loadList('players');
     latest = LocalCache.loadList('latest');
@@ -234,7 +232,6 @@ class AppData extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 2. جلب البيانات الجديدة من Supabase
       final results = await Future.wait([
         supabase.from('news').select().order('created_at', ascending: false),
         supabase.from('players').select().order('points', ascending: false),
@@ -244,7 +241,6 @@ class AppData extends ChangeNotifier {
       players = List<Map<String, dynamic>>.from(results[1]);
       latest = List<Map<String, dynamic>>.from(results[2]);
 
-      // 3. حفظ البيانات الجديدة في التخزين المحلي
       LocalCache.saveList('news', news);
       LocalCache.saveList('players', players);
       LocalCache.saveList('latest', latest);
@@ -252,7 +248,6 @@ class AppData extends ChangeNotifier {
       loading = false; 
       notifyListeners();
 
-      // 4. جلب باقي البيانات في الخلفية (بدون تعطيل الواجهة)
       _loadBackgroundData();
     } catch (e) { 
       debugPrint('Load data error: $e'); 
@@ -261,32 +256,19 @@ class AppData extends ChangeNotifier {
     }
   }
 
-  // ✅ دالة جديدة: تحميل البيانات الخلفية
   Future<void> _loadBackgroundData() async {
     try {
-      await loadLikes(); 
-      await loadCommentCounts(); 
-      await loadNotifications();
-      await loadPoll(); 
-      await loadQuizQuestions(); 
-      await loadImportantNews();
-      await loadGallery(); 
-      await loadPosts(); 
-      await loadUserRewards();
-      await loadUnreadMessagesCount(); 
-      await loadSavedPosts();
-      await loadFollowStats(); 
-      await loadCommentLikes(); 
-      await loadStories();
-      
+      await loadLikes(); await loadCommentCounts(); await loadNotifications();
+      await loadPoll(); await loadQuizQuestions(); await loadImportantNews();
+      await loadGallery(); await loadPosts(); await loadUserRewards();
+      await loadUnreadMessagesCount(); await loadSavedPosts();
+      await loadFollowStats(); await loadCommentLikes(); await loadStories();
       if (_isAdmin) {
         final msgData = await supabase.from('messages').select().order('created_at', ascending: false); messages = List<Map<String, dynamic>>.from(msgData);
         final reqData = await supabase.from('purchase_requests').select().order('created_at', ascending: false); purchaseRequests = List<Map<String, dynamic>>.from(reqData);
         final quizData = await supabase.from('quiz_results').select().order('created_at', ascending: false); quizResults = List<Map<String, dynamic>>.from(quizData);
         final compData = await supabase.from('complaints').select().order('created_at', ascending: false); complaints = List<Map<String, dynamic>>.from(compData);
-      } else { 
-        messages = []; purchaseRequests = []; quizResults = []; complaints = []; 
-      }
+      } else { messages = []; purchaseRequests = []; quizResults = []; complaints = []; }
       notifyListeners();
     } catch (e) {
       debugPrint('Background load error: $e');
@@ -307,19 +289,28 @@ class AppData extends ChangeNotifier {
     } catch (e) {}
   }
 
+  // ✅ دالة الإعجاب المعدلة مع debugPrint
   Future<bool> togglePostLike(dynamic postId) async {
     if (currentAccountId == null) return false;
     try {
       final key = postId.toString();
       if (likedPosts.contains(key)) {
         await supabase.from('post_likes').delete().eq('post_id', postId).eq('account_id', currentAccountId!);
-        likedPosts.remove(key); postLikeCounts[postId] = max(0, (postLikeCounts[postId] ?? 1) - 1);
+        likedPosts.remove(key); 
+        postLikeCounts[postId] = max(0, (postLikeCounts[postId] ?? 1) - 1);
+        debugPrint('✅ تم إزالة الإعجاب');
       } else {
         await supabase.from('post_likes').insert({'post_id': postId, 'account_id': currentAccountId});
-        likedPosts.add(key); postLikeCounts[postId] = (postLikeCounts[postId] ?? 0) + 1;
+        likedPosts.add(key); 
+        postLikeCounts[postId] = (postLikeCounts[postId] ?? 0) + 1;
+        debugPrint('✅ تم الإعجاب بنجاح');
       }
-      notifyListeners(); return true;
-    } catch (e) { return false; }
+      notifyListeners(); 
+      return true;
+    } catch (e) { 
+      debugPrint('❌ خطأ في الإعجاب: $e');
+      return false; 
+    }
   }
 
   Future<List<Map<String, dynamic>>> getPostComments(dynamic postId) async {
