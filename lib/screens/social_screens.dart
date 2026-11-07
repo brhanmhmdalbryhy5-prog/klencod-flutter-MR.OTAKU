@@ -174,11 +174,7 @@ class _PostCardState extends State<PostCard> {
               builder: (_) => Scaffold(
                 backgroundColor: Colors.black,
                 appBar: AppBar(backgroundColor: Colors.black, iconTheme: const IconThemeData(color: Colors.white)),
-                body: Center(
-                  child: InteractiveViewer(
-                    child: CachedNetworkImage(imageUrl: img, fit: BoxFit.contain),
-                  ),
-                ),
+                body: Center(child: InteractiveViewer(child: CachedNetworkImage(imageUrl: img, fit: BoxFit.contain))),
               ),
             ));
           },
@@ -189,20 +185,14 @@ class _PostCardState extends State<PostCard> {
               child: AspectRatio(
                 aspectRatio: 4 / 6,
                 child: CachedNetworkImage(
-                  imageUrl: img,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
+                  imageUrl: img, width: double.infinity, fit: BoxFit.cover,
                   errorWidget: (_, __, ___) => Container(color: AppColors.cardBlack, child: const Icon(Icons.broken_image, color: AppColors.gold)),
                 ),
               ),
             ),
             Positioned(bottom: 8, right: 8, child: CircleAvatar(
               backgroundColor: Colors.black54,
-              child: IconButton(
-                icon: const Icon(Icons.download, color: Colors.white, size: 20),
-                onPressed: _downloadImage,
-                tooltip: 'تنزيل الصورة',
-              ),
+              child: IconButton(icon: const Icon(Icons.download, color: Colors.white, size: 20), onPressed: _downloadImage, tooltip: 'تنزيل الصورة'),
             )),
           ]),
         ),
@@ -221,12 +211,8 @@ class _PostCardState extends State<PostCard> {
         const Spacer(),
         IconButton(onPressed: () => data.toggleSavePost(postId), icon: Icon(saved ? Icons.bookmark : Icons.bookmark_border, color: saved ? Colors.amber : AppColors.gold)),
         IconButton(
-          onPressed: () {
-            data.incrementPostView(postId);
-            showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => PostInfoSheet(data: data, post: post));
-          },
-          icon: const Icon(Icons.bar_chart, color: AppColors.gold, size: 22),
-          tooltip: 'معلومات المنشور',
+          onPressed: () { data.incrementPostView(postId); showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => PostInfoSheet(data: data, post: post)); },
+          icon: const Icon(Icons.bar_chart, color: AppColors.gold, size: 22), tooltip: 'معلومات المنشور',
         ),
         IconButton(onPressed: _sharePost, icon: const Icon(Icons.share_outlined, color: AppColors.gold, size: 22)),
       ]),
@@ -357,7 +343,7 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
 }
 
 // =======================================================
-// صفحة حساب أي مستخدم (مع زر المراسلة)
+// صفحة حساب أي مستخدم (مع زر مراسلة)
 // =======================================================
 class UserProfilePage extends StatefulWidget {
   final AppData data; final int accountId; final String userName;
@@ -442,81 +428,36 @@ class _UserProfilePageState extends State<UserProfilePage> {
 }
 
 // =======================================================
-// صفحة الرسائل (صندوق المحادثات النشطة)
+// صفحة الرسائل (تعرض كل المستخدمين للتواصل)
 // =======================================================
-class PrivateMessagesPage extends StatefulWidget {
+class PrivateMessagesPage extends StatelessWidget {
   final AppData data;
   const PrivateMessagesPage({super.key, required this.data});
   @override
-  State<PrivateMessagesPage> createState() => _PrivateMessagesPageState();
-}
-
-class _PrivateMessagesPageState extends State<PrivateMessagesPage> {
-  bool _loading = true;
-  List<Map<String, dynamic>> _chatPartners = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadChats();
-  }
-
-  Future<void> _loadChats() async {
-    if (widget.data.currentAccountId == null) return;
-    try {
-      // جلب معرفات الأشخاص الذين أرسلوا لي رسائل أو أرسلت لهم
-      final result = await Supabase.instance.client
-          .from('private_messages')
-          .select('sender_id, receiver_id')
-          .or('sender_id.eq.${widget.data.currentAccountId},receiver_id.eq.${widget.data.currentAccountId}');
-      
-      final partnerIds = <int>{};
-      for (final row in result) {
-        final sender = parseInt(row['sender_id']);
-        final receiver = parseInt(row['receiver_id']);
-        if (sender != widget.data.currentAccountId) partnerIds.add(sender);
-        if (receiver != widget.data.currentAccountId) partnerIds.add(receiver);
-      }
-
-      // جلب بيانات هؤلاء الأشخاص
-      _chatPartners = widget.data.players.where((p) => partnerIds.contains(parseInt(p['account_id']))).toList();
-    } catch (e) {
-      debugPrint('Load chats error: $e');
-    }
-    if (mounted) setState(() => _loading = false);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('المحادثات'), actions: [
-        IconButton(icon: const Icon(Icons.refresh), onPressed: () { setState(() => _loading = true); _loadChats(); }),
-      ]),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _chatPartners.isEmpty
-              ? const Center(child: Text('لا توجد محادثات بعد.\nاذهب إلى حساب أي شخص واضغط "مراسلة".', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)))
-              : ListView.builder(itemCount: _chatPartners.length, itemBuilder: (_, i) {
-                  final p = _chatPartners[i];
-                  final avatar = clean(p['avatar_url']);
-                  final name = widget.data.displayNameForAccount(p['account_id']);
-                  final userId = parseInt(p['account_id']);
-                  final unread = widget.data.unreadMessageCounts[userId] ?? 0;
-                  final isVerified = widget.data.isPlayerAdmin(userId);
-                  return Card(child: ListTile(
-                    leading: GestureDetector(onTap: () => showAvatarDialog(context, avatar, name), child: CircleAvatar(backgroundColor: AppColors.gold, backgroundImage: avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null, child: avatar.isEmpty ? const Icon(Icons.person, color: Colors.black) : null)),
-                    title: Row(children: [Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.getColorForName(name))), if (isVerified) ...[const SizedBox(width: 4), const Icon(Icons.verified, color: Colors.blue, size: 14)]]),
-                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [if (unread > 0) Badge(label: Text('$unread'), backgroundColor: Colors.red), const SizedBox(width: 8), const Icon(Icons.message, color: AppColors.gold)]),
-                    onTap: () async { await Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(data: widget.data, other: p))); _loadChats(); },
-                  ));
-                }),
-    );
+    return AnimatedBuilder(animation: data, builder: (context, _) {
+      final others = data.players.where((p) => parseInt(p['account_id']) != data.currentAccountId).toList();
+      return Scaffold(
+        appBar: AppBar(title: const Text('الرسائل')),
+        body: others.isEmpty ? const Center(child: Text('لا يوجد مستخدمون.')) : ListView.builder(itemCount: others.length, itemBuilder: (_, i) {
+          final p = others[i];
+          final avatar = clean(p['avatar_url']);
+          final name = data.displayNameForAccount(p['account_id']);
+          final userId = parseInt(p['account_id']);
+          final unread = data.unreadMessageCounts[userId] ?? 0;
+          final isVerified = data.isPlayerAdmin(userId);
+          return Card(child: ListTile(
+            leading: GestureDetector(onTap: () => showAvatarDialog(context, avatar, name), child: CircleAvatar(backgroundColor: AppColors.gold, backgroundImage: avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null, child: avatar.isEmpty ? const Icon(Icons.person, color: Colors.black) : null)),
+            title: Row(children: [Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.getColorForName(name))), if (isVerified) ...[const SizedBox(width: 4), const Icon(Icons.verified, color: Colors.blue, size: 14)]]),
+            trailing: Row(mainAxisSize: MainAxisSize.min, children: [if (unread > 0) Badge(label: Text('$unread'), backgroundColor: Colors.red), const SizedBox(width: 8), const Icon(Icons.message, color: AppColors.gold)]),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(data: data, other: p))),
+          ));
+        }),
+      );
+    });
   }
 }
 
-// =======================================================
-// شاشة المحادثة
-// =======================================================
 class ChatScreen extends StatefulWidget {
   final AppData data; final Map<String, dynamic> other;
   const ChatScreen({super.key, required this.data, required this.other});
