@@ -66,6 +66,10 @@ class AppData extends ChangeNotifier {
 
   final Set<String> _viewedStoryIds = {};
 
+  // ✅ المنشورات المشاهدة
+  final Set<String> _viewedPostIds = {};
+  bool _viewedPostsLoaded = false;
+
   Map<String, dynamic>? activePoll;
   List<Map<String, dynamic>> activePollOptions = [];
   List<Map<String, dynamic>> pollVoters = [];
@@ -224,34 +228,27 @@ class AppData extends ChangeNotifier {
 
   // ✅ دالة loadData المعدلة: عرض الواجهة فوراً وجلب البيانات بالتوازي
   Future<void> loadData() async {
-    // 1. قراءة البيانات من التخزين المحلي (سريع جداً)
     news = LocalCache.loadList('news');
     players = LocalCache.loadList('players');
     latest = LocalCache.loadList('latest');
-    
+
     loading = false; 
     notifyListeners(); 
 
-    // 2. جلب كل البيانات من Supabase بالتوازي (أسرع بكثير)
     try {
       await Future.wait([
         _fetchNews(),
         _fetchPlayers(),
         _fetchLatest(),
-        _fetchPosts(), // جلب المنشورات أيضاً بالتوازي
+        _fetchPosts(),
       ]);
-      
-      // تحديث الواجهة بعد اكتمال جميع الطلبات
       notifyListeners();
-      
-      // 3. باقي البيانات (إشعارات، إعجابات، إلخ) في الخلفية
       _loadBackgroundData();
     } catch (e) { 
       debugPrint('Load data error: $e'); 
     }
   }
 
-  // ✅ دوال مساعدة لجلب كل نوع من البيانات بالتوازي
   Future<void> _fetchNews() async {
     try {
       final result = await supabase.from('news').select().order('created_at', ascending: false);
@@ -317,7 +314,6 @@ class AppData extends ChangeNotifier {
     } catch (e) {}
   }
 
-  // ✅ دالة الإعجاب المعدلة مع debugPrint
   Future<bool> togglePostLike(dynamic postId) async {
     if (currentAccountId == null) return false;
     try {
@@ -711,16 +707,16 @@ class AppData extends ChangeNotifier {
     try {
       final likes = await supabase.from('post_likes').select('account_id').eq('post_id', postId);
       final saves = await supabase.from('saved_posts').select('account_id').eq('post_id', postId);
-      
+
       List<Map<String, dynamic>> likers = [];
       List<Map<String, dynamic>> savers = [];
-      
+
       final likerIds = likes.map((e) => parseInt(e['account_id'])).toList();
       final saverIds = saves.map((e) => parseInt(e['account_id'])).toList();
-      
+
       likers = players.where((p) => likerIds.contains(parseInt(p['account_id']))).toList();
       savers = players.where((p) => saverIds.contains(parseInt(p['account_id']))).toList();
-      
+
       return {'likers': likers, 'savers': savers, 'totalLikes': likes.length, 'totalSaves': saves.length};
     } catch (e) {
       debugPrint('Get post info error: $e');
@@ -743,10 +739,10 @@ class AppData extends ChangeNotifier {
       final myPosts = await supabase.from('posts').select('id').eq('account_id', accountId);
       final postIds = myPosts.map((e) => e['id']).toList();
       if (postIds.isEmpty) return null;
-      
+
       final likes = await supabase.from('post_likes').select('post_id').inFilter('post_id', postIds);
       final totalLikes = likes.length;
-      
+
       if (totalLikes >= 1000) return '👑 أسطوري';
       if (totalLikes >= 500) return '💎 ماسي';
       if (totalLikes >= 100) return '🥇 ذهبي';
@@ -758,42 +754,40 @@ class AppData extends ChangeNotifier {
       return null;
     }
   }
-// ================= VIEWED POSTS (المنشورات المشاهدة) =================
-final Set<String> _viewedPostIds = {};
-bool _viewedPostsLoaded = false;
 
-Future<void> loadViewedPosts() async {
-  if (_viewedPostsLoaded) return;
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getStringList('mr_otaku_viewed_posts');
-    if (saved != null) _viewedPostIds.addAll(saved);
-    _viewedPostsLoaded = true;
+  // ================= VIEWED POSTS (المنشورات المشاهدة) =================
+  Future<void> loadViewedPosts() async {
+    if (_viewedPostsLoaded) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getStringList('mr_otaku_viewed_posts');
+      if (saved != null) _viewedPostIds.addAll(saved);
+      _viewedPostsLoaded = true;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  bool isPostViewed(dynamic postId) => _viewedPostIds.contains(postId.toString());
+
+  Future<void> markPostViewed(dynamic postId) async {
+    _viewedPostIds.add(postId.toString());
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('mr_otaku_viewed_posts', _viewedPostIds.toList());
+    } catch (_) {}
     notifyListeners();
-  } catch (_) {}
-}
+  }
 
-bool isPostViewed(dynamic postId) => _viewedPostIds.contains(postId.toString());
+  Future<void> clearViewedPosts() async {
+    _viewedPostIds.clear();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('mr_otaku_viewed_posts');
+    } catch (_) {}
+    notifyListeners();
+  }
 
-Future<void> markPostViewed(dynamic postId) async {
-  _viewedPostIds.add(postId.toString());
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('mr_otaku_viewed_posts', _viewedPostIds.toList());
-  } catch (_) {}
-  notifyListeners();
-}
-
-Future<void> clearViewedPosts() async {
-  _viewedPostIds.clear();
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('mr_otaku_viewed_posts');
-  } catch (_) {}
-  notifyListeners();
-}
-
-List<Map<String, dynamic>> get unviewedPosts {
-  return posts.where((p) => !isPostViewed(p['id'])).toList();
-}
+  List<Map<String, dynamic>> get unviewedPosts {
+    return posts.where((p) => !isPostViewed(p['id'])).toList();
+  }
 }
