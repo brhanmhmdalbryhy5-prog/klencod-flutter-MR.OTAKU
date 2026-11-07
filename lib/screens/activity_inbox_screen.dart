@@ -5,6 +5,7 @@ import '../core/colors.dart';
 import '../core/helpers.dart';
 import '../data/app_data.dart';
 import 'social_screens.dart';
+import '../core/theme_manager.dart';
 
 class ActivityInboxScreen extends StatefulWidget {
   final AppData data;
