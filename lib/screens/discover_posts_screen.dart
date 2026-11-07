@@ -22,6 +22,12 @@ class _DiscoverPostsScreenState extends State<DiscoverPostsScreen> {
   int _currentIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    widget.data.loadViewedPosts(); // ✅ تحميل المنشورات المشاهدة
+  }
+
+  @override
   void dispose() { _controller.dispose(); super.dispose(); }
 
   @override
@@ -31,14 +37,37 @@ class _DiscoverPostsScreenState extends State<DiscoverPostsScreen> {
       body: AnimatedBuilder(
         animation: widget.data,
         builder: (context, _) {
-          // ✅ إظهار دائرة التحميل أثناء تحميل البيانات
           if (widget.data.loading && widget.data.posts.isEmpty) {
             return const Center(child: CircularProgressIndicator(color: AppColors.gold));
           }
-          final posts = widget.data.posts;
+          
+          final posts = widget.data.unviewedPosts; // ✅ تصفية المنشورات المشاهدة
+          
           if (posts.isEmpty) {
-            return const Center(child: Text('لا توجد منشورات بعد', style: TextStyle(color: Colors.white)));
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.done_all, color: AppColors.gold, size: 80),
+                  const SizedBox(height: 16),
+                  const Text('لقد شاهدت جميع المنشورات!', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  const Text('عد لاحقاً لرؤية منشورات جديدة.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      await widget.data.clearViewedPosts();
+                      await widget.data.loadViewedPosts();
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('إعادة تعيين'),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: Colors.black),
+                  ),
+                ],
+              ),
+            );
           }
+          
           return PageView.builder(
             controller: _controller,
             scrollDirection: Axis.vertical,
@@ -46,6 +75,7 @@ class _DiscoverPostsScreenState extends State<DiscoverPostsScreen> {
             onPageChanged: (index) {
               setState(() => _currentIndex = index);
               widget.data.incrementPostView(posts[index]['id']);
+              widget.data.markPostViewed(posts[index]['id']); // ✅ حفظ المنشور كمشاهد
             },
             itemBuilder: (context, index) {
               return TikTokPost(
@@ -89,7 +119,7 @@ class _TikTokPostState extends State<TikTokPost> {
     if (mounted) setState(() => _rankBadge = badge);
   }
 
-  Future<void> _handleDoubleTap() async {
+  void _handleDoubleTap() async {
     final liked = widget.data.likedPosts.contains(widget.post['id'].toString());
     if (!liked) {
       await widget.data.togglePostLike(widget.post['id']);
@@ -118,7 +148,6 @@ class _TikTokPostState extends State<TikTokPost> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // الخلفية (صورة أو فيديو)
           if (vid.isNotEmpty)
             Center(child: TikTokVideo(url: vid, isActive: widget.isActive))
           else if (img.isNotEmpty)
@@ -134,7 +163,6 @@ class _TikTokPostState extends State<TikTokPost> {
               ),
             ),
 
-          // تعتيم سفلي
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -173,7 +201,6 @@ class _TikTokPostState extends State<TikTokPost> {
               },
             ),
 
-          // زر الرجوع في الأعلى + كلمة استكشف
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -191,7 +218,6 @@ class _TikTokPostState extends State<TikTokPost> {
             ),
           ),
 
-          // معلومات المنشور (الأسفل يسار)
           Positioned(
             bottom: 20,
             left: 16,
@@ -231,7 +257,6 @@ class _TikTokPostState extends State<TikTokPost> {
             ),
           ),
 
-          // أزرار التفاعل (الأسفل يمين)
           Positioned(
             bottom: 20,
             right: 12,
