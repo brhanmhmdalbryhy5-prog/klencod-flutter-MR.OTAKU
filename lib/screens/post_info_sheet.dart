@@ -3,7 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/colors.dart';
 import '../core/helpers.dart';
-import '../core/theme_manager.dart'; // ✅ تمت الإضافة
+import '../core/theme_manager.dart';
 import '../data/app_data.dart';
 import 'social_screens.dart';
 
@@ -21,6 +21,7 @@ class _PostInfoSheetState extends State<PostInfoSheet> {
   List<Map<String, dynamic>> _likers = [];
   List<Map<String, dynamic>> _savers = [];
   int _views = 0;
+  String? _error;
 
   @override
   void initState() {
@@ -31,40 +32,52 @@ class _PostInfoSheetState extends State<PostInfoSheet> {
   Future<void> _loadInfo() async {
     final postId = widget.post['id'];
     try {
-      // 1. جلب من أعجبوا (من جدول post_likes)
+      // 1. جلب من أعجبوا (بتحويل postId)
       final likes = await Supabase.instance.client
           .from('post_likes')
           .select('account_id')
-          .eq('post_id', postId);
+          .eq('post_id', postId)
+          .timeout(const Duration(seconds: 10));
 
-      // 2. جلب من حفظوا (من جدول saved_posts)
+      // 2. جلب من حفظوا
       final saves = await Supabase.instance.client
           .from('saved_posts')
           .select('account_id')
-          .eq('post_id', postId);
+          .eq('post_id', postId)
+          .timeout(const Duration(seconds: 10));
 
-      // 3. المشاهدات (إذا كان العمود views_count موجوداً)
+      // 3. المشاهدات
       int views = 0;
       try {
         final postData = await Supabase.instance.client
             .from('posts')
             .select('views_count')
             .eq('id', postId)
-            .maybeSingle();
+            .maybeSingle()
+            .timeout(const Duration(seconds: 5));
         views = parseInt(postData?['views_count']);
       } catch (_) {}
 
-      // تحويل الـ IDs إلى بيانات لاعبين
       final likerIds = likes.map((e) => parseInt(e['account_id'])).toList();
       final saverIds = saves.map((e) => parseInt(e['account_id'])).toList();
 
-      _likers = widget.data.players.where((p) => likerIds.contains(parseInt(p['account_id']))).toList();
-      _savers = widget.data.players.where((p) => saverIds.contains(parseInt(p['account_id']))).toList();
-      _views = views;
+      if (mounted) {
+        setState(() {
+          _likers = widget.data.players.where((p) => likerIds.contains(parseInt(p['account_id']))).toList();
+          _savers = widget.data.players.where((p) => saverIds.contains(parseInt(p['account_id']))).toList();
+          _views = views;
+          _loading = false;
+        });
+      }
     } catch (e) {
       debugPrint('Post info error: $e');
+      if (mounted) {
+        setState(() {
+          _error = 'تعذر تحميل المعلومات: $e';
+          _loading = false;
+        });
+      }
     }
-    if (mounted) setState(() => _loading = false);
   }
 
   @override
@@ -78,7 +91,6 @@ class _PostInfoSheetState extends State<PostInfoSheet> {
       ),
       child: Column(
         children: [
-          // شريط السحب
           Container(
             margin: const EdgeInsets.only(top: 8, bottom: 8),
             width: 50, height: 4,
@@ -99,47 +111,40 @@ class _PostInfoSheetState extends State<PostInfoSheet> {
           const Divider(),
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      // صف الإحصائيات السريعة
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
+                : _error != null
+                    ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red), textAlign: TextAlign.center))
+                    : ListView(
+                        padding: const EdgeInsets.all(16),
                         children: [
-                          _statCard(Icons.favorite, Colors.red, '${_likers.length}', 'إعجاب'),
-                          _statCard(Icons.bookmark, Colors.amber, '${_savers.length}', 'حفظ'),
-                          _statCard(Icons.visibility, Colors.blue, '$_views', 'مشاهدة'),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              _statCard(Icons.favorite, Colors.red, '${_likers.length}', 'إعجاب'),
+                              _statCard(Icons.bookmark, Colors.amber, '${_savers.length}', 'حفظ'),
+                              _statCard(Icons.visibility, Colors.blue, '$_views', 'مشاهدة'),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                          const Text('نمو التفاعل 📈', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 12),
+                          _buildMiniChart(),
+                          const SizedBox(height: 24),
+                          const Divider(),
+                          _buildSectionHeader('الأشخاص الذين أعجبوا', Icons.favorite, Colors.red),
+                          if (_likers.isEmpty)
+                            const Padding(padding: EdgeInsets.all(16), child: Text('لا يوجد أحد أعجب بعد', style: TextStyle(color: Colors.grey)))
+                          else
+                            ..._likers.map((p) => _buildUserTile(p, 'أعجب بمنشورك', Colors.red)),
+                          const SizedBox(height: 16),
+                          const Divider(),
+                          _buildSectionHeader('الأشخاص الذين حفظوا', Icons.bookmark, Colors.amber),
+                          if (_savers.isEmpty)
+                            const Padding(padding: EdgeInsets.all(16), child: Text('لا يوجد أحد حفظ بعد', style: TextStyle(color: Colors.grey)))
+                          else
+                            ..._savers.map((p) => _buildUserTile(p, 'حفظ منشورك', Colors.amber)),
                         ],
                       ),
-                      const SizedBox(height: 24),
-
-                      // مخطط سهمي بسيط
-                      const Text('نمو التفاعل 📈', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 12),
-                      _buildMiniChart(),
-
-                      const SizedBox(height: 24),
-                      const Divider(),
-
-                      // قائمة المعجبين
-                      _buildSectionHeader('الأشخاص الذين أعجبوا', Icons.favorite, Colors.red),
-                      if (_likers.isEmpty)
-                        const Padding(padding: EdgeInsets.all(16), child: Text('لا يوجد أحد أعجب بعد', style: TextStyle(color: Colors.grey)))
-                      else
-                        ..._likers.map((p) => _buildUserTile(p, 'أعجب بمنشورك', Colors.red)),
-
-                      const SizedBox(height: 16),
-                      const Divider(),
-
-                      // قائمة من حفظوا
-                      _buildSectionHeader('الأشخاص الذين حفظوا', Icons.bookmark, Colors.amber),
-                      if (_savers.isEmpty)
-                        const Padding(padding: EdgeInsets.all(16), child: Text('لا يوجد أحد حفظ بعد', style: TextStyle(color: Colors.grey)))
-                      else
-                        ..._savers.map((p) => _buildUserTile(p, 'حفظ منشورك', Colors.amber)),
-                    ],
-                  ),
           ),
         ],
       ),
