@@ -12,7 +12,7 @@ import '../core/helpers.dart';
 import '../core/theme_manager.dart';
 import '../data/app_data.dart';
 import 'post_info_sheet.dart';
-import 'discover_posts_screen.dart'; // ✅ جديد
+import 'discover_posts_screen.dart';
 
 // =======================================================
 // صفحة المنشورات (زر الاستكشاف)
@@ -70,7 +70,7 @@ class PostsPage extends StatelessWidget {
 }
 
 // =======================================================
-// بطاقة المنشور (مع درع المستخدم)
+// بطاقة المنشور (مع درع المستخدم والصورة بنسبة 4:6)
 // =======================================================
 class PostCard extends StatefulWidget {
   final AppData data; final Map<String, dynamic> post;
@@ -169,9 +169,35 @@ class _PostCardState extends State<PostCard> {
       if (img.isNotEmpty) ...[
         const SizedBox(height: 10),
         GestureDetector(
+          onTap: () {
+            // فتح الصورة بحجمها الكامل
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => Scaffold(
+                backgroundColor: Colors.black,
+                appBar: AppBar(backgroundColor: Colors.black, iconTheme: const IconThemeData(color: Colors.white)),
+                body: Center(
+                  child: InteractiveViewer(
+                    child: CachedNetworkImage(imageUrl: img, fit: BoxFit.contain),
+                  ),
+                ),
+              ),
+            ));
+          },
           onDoubleTap: () { if (!liked) _handleLike(); },
           child: Stack(children: [
-            ClipRRect(borderRadius: BorderRadius.circular(12), child: CachedNetworkImage(imageUrl: img, width: double.infinity, fit: BoxFit.cover, errorWidget: (_, __, ___) => const SizedBox())),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              // ✅ استخدام AspectRatio بنسبة 4:6 لعرض الصورة كاملة مثل تيك توك
+              child: AspectRatio(
+                aspectRatio: 4 / 6, // نسبة العرض إلى الارتفاع
+                child: CachedNetworkImage(
+                  imageUrl: img,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, __, ___) => Container(color: AppColors.cardBlack, child: const Icon(Icons.broken_image, color: AppColors.gold)),
+                ),
+              ),
+            ),
             Positioned(bottom: 8, right: 8, child: CircleAvatar(
               backgroundColor: Colors.black54,
               child: IconButton(
