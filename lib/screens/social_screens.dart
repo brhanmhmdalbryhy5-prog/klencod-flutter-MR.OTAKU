@@ -279,7 +279,7 @@ class _InlineVideoState extends State<InlineVideo> {
 }
 
 // =======================================================
-// تعليقات المنشورات
+// تعليقات المنشورات (مع دعم الردود الصحيحة)
 // =======================================================
 class PostCommentsSheet extends StatefulWidget {
   final AppData data; final dynamic postId;
@@ -293,19 +293,64 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
   final focusNode = FocusNode();
   List<Map<String, dynamic>> comments = [];
   bool loading = true;
-  String? _replyTo;
+
+  String? _replyTo;        // اسم المُردّ عليه (للعرض)
+  dynamic _replyToId;      // ✅ id التعليق الأصلي (للربط)
   File? _image;
 
   @override
   void initState() { super.initState(); load(); }
-  Future<void> load() async { await widget.data.loadCommentLikes(); final res = await widget.data.getPostComments(widget.postId); if (mounted) setState(() { comments = res; loading = false; }); }
-  Future<void> _pickImage() async { final picker = ImagePicker(); final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70); if (picked != null) setState(() => _image = File(picked.path)); }
+
+  Future<void> load() async {
+    await widget.data.loadCommentLikes();
+    final res = await widget.data.getPostComments(widget.postId);
+    if (mounted) setState(() { comments = res; loading = false; });
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    if (picked != null) setState(() => _image = File(picked.path));
+  }
+
   Future<void> send() async {
     if (ctrl.text.trim().isEmpty && _image == null) return;
-    final ok = await widget.data.addPostComment(widget.postId, ctrl.text, replyTo: _replyTo, imageFile: _image);
-    if (ok) { ctrl.clear(); setState(() { _replyTo = null; _image = null; }); await load(); }
+
+    final ok = await widget.data.addPostComment(
+      widget.postId,
+      ctrl.text,
+      replyTo: _replyTo,
+      replyToId: _replyToId,   // ✅ تمرير id التعليق الأصلي
+      imageFile: _image,
+    );
+
+    if (ok) {
+      ctrl.clear();
+      setState(() {
+        _replyTo = null;
+        _replyToId = null;   // ✅ تصفير
+        _image = null;
+      });
+      await load();
+    }
   }
-  void _startReply(String userName) { setState(() => _replyTo = userName); focusNode.requestFocus(); }
+
+  // ✅ تستقبل id التعليق الأصلي
+  void _startReply(String userName, dynamic commentId) {
+    setState(() {
+      _replyTo = userName;
+      _replyToId = commentId;
+    });
+    focusNode.requestFocus();
+  }
+
+  void _cancelReply() {
+    setState(() {
+      _replyTo = null;
+      _replyToId = null;
+    });
+  }
+
   @override
   void dispose() { ctrl.dispose(); focusNode.dispose(); super.dispose(); }
 
@@ -330,7 +375,11 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
               GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => UserProfilePage(data: widget.data, accountId: parseInt(c['account_id']), userName: name))), child: CircleAvatar(radius: 18, backgroundImage: avatarUrl.isNotEmpty ? CachedNetworkImageProvider(avatarUrl) : null, child: avatarUrl.isEmpty ? const Icon(Icons.person, size: 18) : null)),
               const SizedBox(width: 8),
               Expanded(child: Row(children: [Text(name, style: TextStyle(color: AppColors.getColorForName(name), fontWeight: FontWeight.bold)), if (isVerified) ...[const SizedBox(width: 4), const Icon(Icons.verified, color: Colors.blue, size: 14)]])),
-              IconButton(icon: const Icon(Icons.reply, color: AppColors.gold, size: 20), onPressed: () => _startReply(name)),
+              IconButton(
+                icon: const Icon(Icons.reply, color: AppColors.gold, size: 20),
+                onPressed: () => _startReply(name, cid),   // ✅ تمرير cid
+                tooltip: 'رد',
+              ),
             ]),
             if (replyTo.isNotEmpty) Text('↩️ رداً على $replyTo', style: TextStyle(fontSize: 11, color: AppColors.gold, fontStyle: FontStyle.italic)),
             if (clean(c['comment_text']).isNotEmpty) Text(clean(c['comment_text'])),
@@ -341,7 +390,7 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
             ]),
           ])));
         })),
-        if (_replyTo != null) Container(padding: const EdgeInsets.all(8), color: AppColors.gold.withOpacity(0.15), child: Row(children: [const Icon(Icons.reply, size: 18, color: AppColors.gold), const SizedBox(width: 6), Expanded(child: Text('الرد على $_replyTo', style: const TextStyle(color: AppColors.gold, fontSize: 13))), IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => setState(() => _replyTo = null))])),
+        if (_replyTo != null) Container(padding: const EdgeInsets.all(8), color: AppColors.gold.withOpacity(0.15), child: Row(children: [const Icon(Icons.reply, size: 18, color: AppColors.gold), const SizedBox(width: 6), Expanded(child: Text('الرد على $_replyTo', style: const TextStyle(color: AppColors.gold, fontSize: 13))), IconButton(icon: const Icon(Icons.close, size: 18), onPressed: _cancelReply)])),
         if (_image != null) Container(padding: const EdgeInsets.all(8), color: AppColors.cardBlack, child: Row(children: [const Icon(Icons.image, color: AppColors.gold), const SizedBox(width: 8), const Expanded(child: Text('صورة جاهزة')), IconButton(icon: const Icon(Icons.close, color: Colors.red, size: 18), onPressed: () => setState(() => _image = null))])),
         Padding(padding: const EdgeInsets.all(10), child: Row(children: [
           IconButton(icon: const Icon(Icons.image, color: AppColors.gold), onPressed: _pickImage),
