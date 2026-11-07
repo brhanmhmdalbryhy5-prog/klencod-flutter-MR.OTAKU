@@ -170,7 +170,6 @@ class _PostCardState extends State<PostCard> {
         const SizedBox(height: 10),
         GestureDetector(
           onTap: () {
-            // فتح الصورة بحجمها الكامل
             Navigator.push(context, MaterialPageRoute(
               builder: (_) => Scaffold(
                 backgroundColor: Colors.black,
@@ -187,9 +186,8 @@ class _PostCardState extends State<PostCard> {
           child: Stack(children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              // ✅ استخدام AspectRatio بنسبة 4:6 لعرض الصورة كاملة مثل تيك توك
               child: AspectRatio(
-                aspectRatio: 4 / 6, // نسبة العرض إلى الارتفاع
+                aspectRatio: 4 / 6,
                 child: CachedNetworkImage(
                   imageUrl: img,
                   width: double.infinity,
@@ -359,7 +357,7 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
 }
 
 // =======================================================
-// صفحة حساب أي مستخدم
+// صفحة حساب أي مستخدم (مع زر المراسلة)
 // =======================================================
 class UserProfilePage extends StatefulWidget {
   final AppData data; final int accountId; final String userName;
@@ -404,18 +402,33 @@ class _UserProfilePageState extends State<UserProfilePage> {
           const SizedBox(height: 8),
           Text('المستوى: ${getUserLevel(points)} | النقاط: $points'),
           const SizedBox(height: 12),
-          if (!isMe) Container(
-            decoration: BoxDecoration(gradient: isFollowing ? LinearGradient(colors: [Colors.grey, Colors.grey.shade400]) : ThemeManager.instance.getButtonGradient(), borderRadius: BorderRadius.circular(30), boxShadow: ThemeManager.instance.getGlowShadow()),
-            child: Material(color: Colors.transparent, child: InkWell(
-              borderRadius: BorderRadius.circular(30),
-              onTap: () async { await widget.data.toggleFollow(widget.accountId); await _loadStats(); },
-              child: Padding(padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12), child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(isFollowing ? Icons.person_remove : Icons.person_add, color: Colors.white, size: 18),
-                const SizedBox(width: 6),
-                Text(isFollowing ? 'إلغاء المتابعة' : 'متابعة', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ])),
+          if (!isMe) Row(children: [
+            Expanded(child: Container(
+              decoration: BoxDecoration(gradient: isFollowing ? LinearGradient(colors: [Colors.grey, Colors.grey.shade400]) : ThemeManager.instance.getButtonGradient(), borderRadius: BorderRadius.circular(30), boxShadow: ThemeManager.instance.getGlowShadow()),
+              child: Material(color: Colors.transparent, child: InkWell(
+                borderRadius: BorderRadius.circular(30),
+                onTap: () async { await widget.data.toggleFollow(widget.accountId); await _loadStats(); },
+                child: Padding(padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12), child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(isFollowing ? Icons.person_remove : Icons.person_add, color: Colors.white, size: 18),
+                  const SizedBox(width: 6),
+                  Text(isFollowing ? 'إلغاء المتابعة' : 'متابعة', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ])),
+              )),
             )),
-          ),
+            const SizedBox(width: 8),
+            Expanded(child: Container(
+              decoration: BoxDecoration(color: AppColors.cardBlack, borderRadius: BorderRadius.circular(30), border: Border.all(color: primary)),
+              child: Material(color: Colors.transparent, child: InkWell(
+                borderRadius: BorderRadius.circular(30),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(data: widget.data, other: player!))),
+                child: Padding(padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12), child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.message, color: Colors.white, size: 18),
+                  const SizedBox(width: 6),
+                  Text('مراسلة', style: TextStyle(color: primary, fontWeight: FontWeight.bold)),
+                ])),
+              )),
+            )),
+          ]),
         ])),
         const Divider(),
         const Padding(padding: EdgeInsets.all(12), child: Text('المنشورات', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18))),
@@ -429,33 +442,81 @@ class _UserProfilePageState extends State<UserProfilePage> {
 }
 
 // =======================================================
-// الرسائل الخاصة
+// صفحة الرسائل (صندوق المحادثات النشطة)
 // =======================================================
-class PrivateMessagesPage extends StatelessWidget {
+class PrivateMessagesPage extends StatefulWidget {
   final AppData data;
   const PrivateMessagesPage({super.key, required this.data});
   @override
+  State<PrivateMessagesPage> createState() => _PrivateMessagesPageState();
+}
+
+class _PrivateMessagesPageState extends State<PrivateMessagesPage> {
+  bool _loading = true;
+  List<Map<String, dynamic>> _chatPartners = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChats();
+  }
+
+  Future<void> _loadChats() async {
+    if (widget.data.currentAccountId == null) return;
+    try {
+      // جلب معرفات الأشخاص الذين أرسلوا لي رسائل أو أرسلت لهم
+      final result = await Supabase.instance.client
+          .from('private_messages')
+          .select('sender_id, receiver_id')
+          .or('sender_id.eq.${widget.data.currentAccountId},receiver_id.eq.${widget.data.currentAccountId}');
+      
+      final partnerIds = <int>{};
+      for (final row in result) {
+        final sender = parseInt(row['sender_id']);
+        final receiver = parseInt(row['receiver_id']);
+        if (sender != widget.data.currentAccountId) partnerIds.add(sender);
+        if (receiver != widget.data.currentAccountId) partnerIds.add(receiver);
+      }
+
+      // جلب بيانات هؤلاء الأشخاص
+      _chatPartners = widget.data.players.where((p) => partnerIds.contains(parseInt(p['account_id']))).toList();
+    } catch (e) {
+      debugPrint('Load chats error: $e');
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(animation: data, builder: (context, _) {
-      final others = data.players.where((p) => parseInt(p['account_id']) != data.currentAccountId).toList();
-      return Scaffold(appBar: AppBar(title: const Text('الرسائل')), body: others.isEmpty ? const Center(child: Text('لا يوجد مستخدمون.')) : ListView.builder(itemCount: others.length, itemBuilder: (_, i) {
-        final p = others[i];
-        final avatar = clean(p['avatar_url']);
-        final name = data.displayNameForAccount(p['account_id']);
-        final userId = parseInt(p['account_id']);
-        final unread = data.unreadMessageCounts[userId] ?? 0;
-        final isVerified = data.isPlayerAdmin(userId);
-        return Card(child: ListTile(
-          leading: GestureDetector(onTap: () => showAvatarDialog(context, avatar, name), child: CircleAvatar(backgroundColor: AppColors.gold, backgroundImage: avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null, child: avatar.isEmpty ? const Icon(Icons.person, color: Colors.black) : null)),
-          title: Row(children: [Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.getColorForName(name))), if (isVerified) ...[const SizedBox(width: 4), const Icon(Icons.verified, color: Colors.blue, size: 14)]]),
-          trailing: Row(mainAxisSize: MainAxisSize.min, children: [if (unread > 0) Badge(label: Text('$unread'), backgroundColor: Colors.red), const SizedBox(width: 8), const Icon(Icons.message, color: AppColors.gold)]),
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(data: data, other: p))),
-        ));
-      }));
-    });
+    return Scaffold(
+      appBar: AppBar(title: const Text('المحادثات'), actions: [
+        IconButton(icon: const Icon(Icons.refresh), onPressed: () { setState(() => _loading = true); _loadChats(); }),
+      ]),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _chatPartners.isEmpty
+              ? const Center(child: Text('لا توجد محادثات بعد.\nاذهب إلى حساب أي شخص واضغط "مراسلة".', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)))
+              : ListView.builder(itemCount: _chatPartners.length, itemBuilder: (_, i) {
+                  final p = _chatPartners[i];
+                  final avatar = clean(p['avatar_url']);
+                  final name = widget.data.displayNameForAccount(p['account_id']);
+                  final userId = parseInt(p['account_id']);
+                  final unread = widget.data.unreadMessageCounts[userId] ?? 0;
+                  final isVerified = widget.data.isPlayerAdmin(userId);
+                  return Card(child: ListTile(
+                    leading: GestureDetector(onTap: () => showAvatarDialog(context, avatar, name), child: CircleAvatar(backgroundColor: AppColors.gold, backgroundImage: avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null, child: avatar.isEmpty ? const Icon(Icons.person, color: Colors.black) : null)),
+                    title: Row(children: [Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.getColorForName(name))), if (isVerified) ...[const SizedBox(width: 4), const Icon(Icons.verified, color: Colors.blue, size: 14)]]),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [if (unread > 0) Badge(label: Text('$unread'), backgroundColor: Colors.red), const SizedBox(width: 8), const Icon(Icons.message, color: AppColors.gold)]),
+                    onTap: () async { await Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen(data: widget.data, other: p))); _loadChats(); },
+                  ));
+                }),
+    );
   }
 }
 
+// =======================================================
+// شاشة المحادثة
+// =======================================================
 class ChatScreen extends StatefulWidget {
   final AppData data; final Map<String, dynamic> other;
   const ChatScreen({super.key, required this.data, required this.other});
