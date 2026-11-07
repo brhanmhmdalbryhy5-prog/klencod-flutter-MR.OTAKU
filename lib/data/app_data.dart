@@ -758,4 +758,42 @@ class AppData extends ChangeNotifier {
       return null;
     }
   }
+// ================= VIEWED POSTS (المنشورات المشاهدة) =================
+final Set<String> _viewedPostIds = {};
+bool _viewedPostsLoaded = false;
+
+Future<void> loadViewedPosts() async {
+  if (_viewedPostsLoaded) return;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList('mr_otaku_viewed_posts');
+    if (saved != null) _viewedPostIds.addAll(saved);
+    _viewedPostsLoaded = true;
+    notifyListeners();
+  } catch (_) {}
+}
+
+bool isPostViewed(dynamic postId) => _viewedPostIds.contains(postId.toString());
+
+Future<void> markPostViewed(dynamic postId) async {
+  _viewedPostIds.add(postId.toString());
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('mr_otaku_viewed_posts', _viewedPostIds.toList());
+  } catch (_) {}
+  notifyListeners();
+}
+
+Future<void> clearViewedPosts() async {
+  _viewedPostIds.clear();
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('mr_otaku_viewed_posts');
+  } catch (_) {}
+  notifyListeners();
+}
+
+List<Map<String, dynamic>> get unviewedPosts {
+  return posts.where((p) => !isPostViewed(p['id'])).toList();
+}
 }
