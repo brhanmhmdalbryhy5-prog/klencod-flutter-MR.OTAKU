@@ -155,7 +155,7 @@ class _TikTokPostState extends State<TikTokPost> {
             Center(
               child: CachedNetworkImage(
                 imageUrl: img, 
-                fit: BoxFit.contain, // ✅ الصورة كاملة في المنتصف
+                fit: BoxFit.contain,
                 width: double.infinity,
               ),
             )
@@ -205,19 +205,17 @@ class _TikTokPostState extends State<TikTokPost> {
               },
             ),
 
-          // زر الرجوع + كلمة استكشف
+          // ✅ زر الرجوع فقط (بدون كلمة استكشف)
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.start,
                 children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
                     onPressed: () => Navigator.pop(context),
                   ),
-                  const Text('استكشف', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 48),
                 ],
               ),
             ),
