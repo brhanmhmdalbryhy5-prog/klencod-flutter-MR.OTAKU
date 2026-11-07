@@ -222,14 +222,15 @@ class AppData extends ChangeNotifier {
     } catch (e) { return false; }
   }
 
+  // ✅ دالة loadData المعدلة: عرض الواجهة فوراً
   Future<void> loadData() async {
     news = LocalCache.loadList('news');
     players = LocalCache.loadList('players');
     latest = LocalCache.loadList('latest');
+    
+    // ✅ إيقاف التحميل فوراً وعرض الواجهة
+    loading = false; 
     notifyListeners(); 
-
-    loading = true; 
-    notifyListeners();
 
     try {
       final results = await Future.wait([
@@ -245,14 +246,11 @@ class AppData extends ChangeNotifier {
       LocalCache.saveList('players', players);
       LocalCache.saveList('latest', latest);
 
-      loading = false; 
       notifyListeners();
 
       _loadBackgroundData();
     } catch (e) { 
       debugPrint('Load data error: $e'); 
-      loading = false; 
-      notifyListeners();
     }
   }
 
