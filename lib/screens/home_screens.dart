@@ -20,7 +20,7 @@ import 'admin_notifications_screen.dart';
 import 'activity_inbox_screen.dart';
 
 // =======================================================
-// 1. الحاوية الرئيسية
+// 1. الحاوية الرئيسية (مع شريط التحميل)
 // =======================================================
 class HomePage extends StatefulWidget {
   final AppData data;
@@ -65,7 +65,24 @@ class _HomePageState extends State<HomePage> {
     final primary = ThemeManager.instance.primaryColor;
 
     return Scaffold(
-      body: IndexedStack(index: index, children: pages),
+      body: Stack(
+        children: [
+          IndexedStack(index: index, children: pages),
+          
+          // ✅ شريط التحميل الخطي
+          if (widget.data.loading)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: LinearProgressIndicator(
+                backgroundColor: Colors.transparent,
+                valueColor: AlwaysStoppedAnimation<Color>(primary),
+                minHeight: 3,
+              ),
+            ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
         onDestinationSelected: (value) async {
@@ -357,7 +374,7 @@ class PollCard extends StatelessWidget {
 }
 
 // =======================================================
-// البحث (بدون صوت)
+// البحث
 // =======================================================
 class CustomSearchDelegate extends SearchDelegate {
   final AppData data;
@@ -470,7 +487,7 @@ class _ProfilePageState extends State<ProfilePage> {
         params: {'target_user_id': widget.data.currentAccountId}
       );
       if (mounted) setState(() => _totalLikes = likes as int);
-      
+
       final badge = await widget.data.getUserRankBadge(widget.data.currentAccountId!);
       if (mounted) setState(() => _myRankBadge = badge);
     } catch (e) {
@@ -546,7 +563,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     Text(widget.data.currentDisplayName, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primary)),
                     IconButton(onPressed: _changeName, icon: Icon(Icons.edit, size: 18, color: primary)),
                   ]),
-                  
+
                   Column(children: [
                     Text('ID: ${widget.data.currentAccountId} | ${widget.data.currentLevel}'),
                     if (_myRankBadge != null) 
@@ -563,7 +580,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                       ),
                   ]),
-                  
+
                   const SizedBox(height: 8),
 
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
