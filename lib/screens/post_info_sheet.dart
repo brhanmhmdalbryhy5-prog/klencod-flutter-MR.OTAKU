@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/colors.dart';
 import '../core/helpers.dart';
+import '../core/theme_manager.dart'; // ✅ تمت الإضافة
 import '../data/app_data.dart';
 import 'social_screens.dart';
 
@@ -199,7 +200,6 @@ class _PostInfoSheetState extends State<PostInfoSheet> {
     );
   }
 
-  // مخطط سهمي بسيط يعتمد على قيم الإعجابات والحفظ
   Widget _buildMiniChart() {
     final totalLikes = _likers.length;
     final totalSaves = _savers.length;
