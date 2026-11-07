@@ -70,7 +70,7 @@ class PostsPage extends StatelessWidget {
 }
 
 // =======================================================
-// بطاقة المنشور (مع درع المستخدم والصورة بنسبة 4:6)
+// بطاقة المنشور (مع درع المستخدم والصورة كاملة)
 // =======================================================
 class PostCard extends StatefulWidget {
   final AppData data; final Map<String, dynamic> post;
@@ -182,17 +182,24 @@ class _PostCardState extends State<PostCard> {
           child: Stack(children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: AspectRatio(
-                aspectRatio: 4 / 6,
+              // ✅ عرض الصورة كاملة بدون قطع
+              child: Container(
+                color: AppColors.cardBlack,
                 child: CachedNetworkImage(
-                  imageUrl: img, width: double.infinity, fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) => Container(color: AppColors.cardBlack, child: const Icon(Icons.broken_image, color: AppColors.gold)),
+                  imageUrl: img,
+                  width: double.infinity,
+                  fit: BoxFit.contain,
+                  errorWidget: (_, __, ___) => Container(height: 200, color: AppColors.cardBlack, child: const Icon(Icons.broken_image, color: AppColors.gold)),
                 ),
               ),
             ),
             Positioned(bottom: 8, right: 8, child: CircleAvatar(
               backgroundColor: Colors.black54,
-              child: IconButton(icon: const Icon(Icons.download, color: Colors.white, size: 20), onPressed: _downloadImage, tooltip: 'تنزيل الصورة'),
+              child: IconButton(
+                icon: const Icon(Icons.download, color: Colors.white, size: 20),
+                onPressed: _downloadImage,
+                tooltip: 'تنزيل الصورة',
+              ),
             )),
           ]),
         ),
@@ -211,8 +218,12 @@ class _PostCardState extends State<PostCard> {
         const Spacer(),
         IconButton(onPressed: () => data.toggleSavePost(postId), icon: Icon(saved ? Icons.bookmark : Icons.bookmark_border, color: saved ? Colors.amber : AppColors.gold)),
         IconButton(
-          onPressed: () { data.incrementPostView(postId); showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => PostInfoSheet(data: data, post: post)); },
-          icon: const Icon(Icons.bar_chart, color: AppColors.gold, size: 22), tooltip: 'معلومات المنشور',
+          onPressed: () {
+            data.incrementPostView(postId);
+            showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => PostInfoSheet(data: data, post: post));
+          },
+          icon: const Icon(Icons.bar_chart, color: AppColors.gold, size: 22),
+          tooltip: 'معلومات المنشور',
         ),
         IconButton(onPressed: _sharePost, icon: const Icon(Icons.share_outlined, color: AppColors.gold, size: 22)),
       ]),
@@ -343,7 +354,7 @@ class _PostCommentsSheetState extends State<PostCommentsSheet> {
 }
 
 // =======================================================
-// صفحة حساب أي مستخدم (مع زر مراسلة)
+// صفحة حساب أي مستخدم
 // =======================================================
 class UserProfilePage extends StatefulWidget {
   final AppData data; final int accountId; final String userName;
@@ -428,7 +439,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
 }
 
 // =======================================================
-// صفحة الرسائل (تعرض كل المستخدمين للتواصل)
+// صفحة الرسائل (تعرض كل المستخدمين)
 // =======================================================
 class PrivateMessagesPage extends StatelessWidget {
   final AppData data;
