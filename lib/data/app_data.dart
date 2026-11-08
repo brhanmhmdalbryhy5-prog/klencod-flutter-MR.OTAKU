@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide toInt;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart'; // ✅ إضافة الضغط
 import '../core/colors.dart';
 import '../core/helpers.dart';
 
@@ -48,6 +49,7 @@ class AppData extends ChangeNotifier {
   List<Map<String, dynamic>> savedPosts = [];
   List<Map<String, dynamic>> complaints = [];
   List<Map<String, dynamic>> stories = [];
+  List<Map<String, dynamic>> novels = []; // ✅ إضافة الروايات
 
   final Map<dynamic, int> postLikeCounts = {};
   final Set<String> likedPosts = {};
@@ -182,7 +184,9 @@ class AppData extends ChangeNotifier {
 
   Future<void> updateLastSeen() async {
     if (currentAccountId == null) return;
-    try { await supabase.from('players').update({'last_seen': DateTime.now().toUtc().toIso8601String()}).eq('account_id', currentAccountId!); } catch (e) { debugPrint('Update last seen error: $e'); }
+    try { 
+      await supabase.from('players').update({'last_seen': DateTime.now().toUtc().toIso8601String()}).eq('account_id', currentAccountId!); 
+    } catch (e) { debugPrint('Update last seen error: $e'); }
   }
 
   Future<void> loadLocalAccount() async {
@@ -286,6 +290,8 @@ class AppData extends ChangeNotifier {
       await loadGallery(); await loadUserRewards();
       await loadUnreadMessagesCount(); await loadSavedPosts();
       await loadFollowStats(); await loadCommentLikes(); await loadStories();
+      await loadNovels(); // ✅ إضافة تحميل الروايات هنا
+      
       if (_isAdmin) {
         final msgData = await supabase.from('messages').select().order('created_at', ascending: false); messages = List<Map<String, dynamic>>.from(msgData);
         final reqData = await supabase.from('purchase_requests').select().order('created_at', ascending: false); purchaseRequests = List<Map<String, dynamic>>.from(reqData);
@@ -411,6 +417,86 @@ class AppData extends ChangeNotifier {
     try { final post = posts.firstWhere((p) => p['id'] == id, orElse: () => {}); if (parseInt(post['account_id']) != currentAccountId && !_isAdmin) return false; await supabase.from('posts').delete().eq('id', id); await loadPosts(); return true; } catch (e) { return false; }
   }
 
+  // ================= NOVELS (الروايات) =================
+  Future<void> loadNovels() async {
+    try {
+      final result = await supabase.from('novels').select().order('created_at', ascending: false);
+      novels = List<Map<String, dynamic>>.from(result);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Load novels error: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getNovelImages(dynamic novelId) async {
+    try {
+      final result = await supabase
+          .from('novel_images')
+          .select()
+          .eq('novel_id', novelId)
+          .order('page_number', ascending: true);
+      return List<Map<String, dynamic>>.from(result);
+    } catch (e) {
+      debugPrint('Get novel images error: $e');
+      return [];
+    }
+  }
+
+  Future<bool> addNovel(String title, String author, String description, File? coverFile) async {
+    if (!_isAdmin || title.trim().isEmpty) return false;
+    try {
+      String? coverUrl;
+      if (coverFile != null) coverUrl = await uploadGeneralImage(coverFile, 'novels');
+      
+      await supabase.from('novels').insert({
+        'title': title.trim(),
+        'author': author.trim().isEmpty ? 'برهان' : author.trim(),
+        'description': description.trim(),
+        'cover_url': coverUrl,
+      });
+      await loadNovels();
+      return true;
+    } catch (e) {
+      debugPrint('Add novel error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> addNovelImage(dynamic novelId, File imageFile, int pageNumber) async {
+    if (!_isAdmin) return false;
+    try {
+      final imageUrl = await uploadGeneralImage(imageFile, 'novels');
+      if (imageUrl == null) return false;
+      
+      await supabase.from('novel_images').insert({
+        'novel_id': novelId,
+        'image_url': imageUrl,
+        'page_number': pageNumber,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('Add novel image error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteNovel(dynamic novelId) async {
+    if (!_isAdmin) return false;
+    try {
+      await supabase.from('novels').delete().eq('id', novelId);
+      await loadNovels();
+      return true;
+    } catch (e) { return false; }
+  }
+
+  Future<bool> deleteNovelImage(dynamic imageId) async {
+    if (!_isAdmin) return false;
+    try {
+      await supabase.from('novel_images').delete().eq('id', imageId);
+      return true;
+    } catch (e) { return false; }
+  }
+
   // ================= STORIES =================
   Future<void> loadStories() async {
     try {
@@ -467,7 +553,7 @@ class AppData extends ChangeNotifier {
       final result = await supabase.from('private_messages')
           .select()
           .or('and(sender_id.eq.$currentAccountId,receiver_id.eq.$otherUserId),and(sender_id.eq.$otherUserId,receiver_id.eq.$currentAccountId)')
-          .order('created_at', ascending: false); // ✅ التعديل هنا: الأحدث أولاً
+          .order('created_at', ascending: false); 
       privateMessages = List<Map<String, dynamic>>.from(result);
       await supabase.from('private_messages').update({'is_read': true}).eq('receiver_id', currentAccountId!).eq('sender_id', otherUserId).eq('is_read', false);
       unreadMessageCounts.remove(otherUserId); notifyListeners();
@@ -513,7 +599,34 @@ class AppData extends ChangeNotifier {
     try { final ext = safeExtension(imageFile.path); final path = 'avatars/${currentAccountId}_${DateTime.now().millisecondsSinceEpoch}.$ext'; await supabase.storage.from('news-images').upload(path, imageFile); final url = supabase.storage.from('news-images').getPublicUrl(path); await supabase.from('players').update({'avatar_url': url}).eq('account_id', currentAccountId!); for (final player in players) { if (parseInt(player['account_id']) == currentAccountId) player['avatar_url'] = url; } notifyListeners(); return true; } catch (e) { return false; }
   }
 
-  Future<String?> uploadGeneralImage(File file, String folder) async { try { final ext = safeExtension(file.path); final path = '$folder/${DateTime.now().millisecondsSinceEpoch}.$ext'; await supabase.storage.from('news-images').upload(path, file); return supabase.storage.from('news-images').getPublicUrl(path); } catch (e) { return null; } }
+  Future<String?> uploadGeneralImage(File file, String folder) async {
+    try {
+      // ✅ ضغط الصورة قبل الرفع
+      final compressedFile = await FlutterImageCompress.compressAndGetFile(
+        file.absolute.path,
+        '${file.parent.path}/compressed_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        quality: 70,
+        minWidth: 1080,
+        minHeight: 1080,
+        format: CompressFormat.jpeg,
+      );
+
+      final finalFile = compressedFile != null ? File(compressedFile.path) : file;
+      final ext = safeExtension(finalFile.path);
+      final path = '$folder/${DateTime.now().millisecondsSinceEpoch}.$ext';
+      
+      await supabase.storage.from('news-images').upload(path, finalFile);
+      
+      if (compressedFile != null) {
+        try { await File(compressedFile.path).delete(); } catch (_) {}
+      }
+
+      return supabase.storage.from('news-images').getPublicUrl(path);
+    } catch (e) {
+      debugPrint('Upload image error: $e');
+      return null;
+    }
+  }
 
   Future<String?> uploadGeneralVideo(File file) async {
     try { final ext = safeExtension(file.path); final path = 'posts/video_${DateTime.now().millisecondsSinceEpoch}.$ext'; await supabase.storage.from('news-images').upload(path, file); return supabase.storage.from('news-images').getPublicUrl(path); } catch (e) { debugPrint('Upload video error: $e'); return null; }
