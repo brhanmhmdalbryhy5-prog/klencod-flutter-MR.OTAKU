@@ -46,7 +46,7 @@ class AdminPanelPage extends StatelessWidget {
       body: ListView(padding: const EdgeInsets.all(16), children: [
         AdminTile(icon: Icons.people, title: 'إدارة ومراقبة الحسابات', colorIndex: 0, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManagePointsPage(data: data)))),
         AdminTile(icon: Icons.campaign, title: 'الخبر المهم', colorIndex: 1, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManageImportantNewsPage(data: data)))),
-        // ✅ زر إدارة الروايات الجديد
+        // ✅ زر إدارة الروايات
         AdminTile(icon: Icons.menu_book, title: 'إدارة الروايات', colorIndex: 3, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManageNovelsPage(data: data)))),
         AdminTile(icon: Icons.photo_library, title: 'إدارة معرض الصور', colorIndex: 2, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManageGalleryPage(data: data)))),
         AdminTile(icon: Icons.assignment_turned_in, title: 'نتائج الاختبارات', colorIndex: 3, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManageQuizResultsPage(data: data)))),
@@ -274,7 +274,7 @@ class _ManageImportantNewsPageState extends State<ManageImportantNewsPage> {
 }
 
 // =======================================================
-// 4. معرض الصور — ✅ مصحح: data بدلاً من widget.data
+// 4. معرض الصور
 // =======================================================
 class ManageGalleryPage extends StatelessWidget {
   final AppData data;
@@ -567,7 +567,7 @@ class _ManageLatestPageState extends State<ManageLatestPage> {
 }
 
 // =======================================================
-// 11. رسائل المستخدمين — ✅ مصحح: قوس ناقص
+// 11. رسائل المستخدمين
 // =======================================================
 class ManageMessagesPage extends StatelessWidget {
   final AppData data;
