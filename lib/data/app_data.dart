@@ -49,7 +49,7 @@ class AppData extends ChangeNotifier {
   List<Map<String, dynamic>> savedPosts = [];
   List<Map<String, dynamic>> complaints = [];
   List<Map<String, dynamic>> stories = [];
-  List<Map<String, dynamic>> novels = []; // ✅ الروايات
+  List<Map<String, dynamic>> novels = [];
 
   final Map<dynamic, int> postLikeCounts = {};
   final Set<String> likedPosts = {};
@@ -288,8 +288,8 @@ class AppData extends ChangeNotifier {
       await loadGallery(); await loadUserRewards();
       await loadUnreadMessagesCount(); await loadSavedPosts();
       await loadFollowStats(); await loadCommentLikes(); await loadStories();
-      await loadNovels(); // ✅ الروايات
-
+      await loadNovels(); 
+      
       if (_isAdmin) {
         final msgData = await supabase.from('messages').select().order('created_at', ascending: false); messages = List<Map<String, dynamic>>.from(msgData);
         final reqData = await supabase.from('purchase_requests').select().order('created_at', ascending: false); purchaseRequests = List<Map<String, dynamic>>.from(reqData);
@@ -343,22 +343,31 @@ class AppData extends ChangeNotifier {
     try { final result = await supabase.from('post_comments').select().eq('post_id', postId).order('created_at', ascending: true); return List<Map<String, dynamic>>.from(result); } catch (e) { return []; }
   }
 
-  Future<bool> addPostComment(dynamic postId, String text, {String? replyTo, String? replyToId, File? imageFile}) async {
+  // ✅ دالة إضافة تعليق معدلة: تحويل replyToId إلى bigint
+  Future<bool> addPostComment(dynamic postId, String text, {String? replyTo, dynamic replyToId, File? imageFile}) async {
     if ((text.trim().isEmpty && imageFile == null) || currentAccountId == null) return false;
     try {
       String? imageUrl;
       if (imageFile != null) imageUrl = await uploadGeneralImage(imageFile, 'comments');
+      
+      final parsedReplyToId = replyToId != null ? parseInt(replyToId) : null;
+      
       await supabase.from('post_comments').insert({
         'post_id': postId, 
         'account_id': currentAccountId, 
         'user_name': currentDisplayName, 
         'comment_text': text.trim(), 
         'reply_to': replyTo, 
-        'reply_to_id': replyToId,
+        'reply_to_id': parsedReplyToId,
         'image_url': imageUrl,
       });
-      postCommentCounts[postId] = (postCommentCounts[postId] ?? 0) + 1; notifyListeners(); return true;
-    } catch (e) { return false; }
+      postCommentCounts[postId] = (postCommentCounts[postId] ?? 0) + 1; 
+      notifyListeners(); 
+      return true;
+    } catch (e) { 
+      debugPrint('❌ Add comment error: $e');
+      return false; 
+    }
   }
 
   Future<String?> addPost(String content, File? imageFile, {File? videoFile}) async {
@@ -641,12 +650,13 @@ class AppData extends ChangeNotifier {
   Future<void> loadCommentCounts() async { try { final result = await supabase.from('news_comments').select('news_id'); commentCounts.clear(); for (final item in result) { final id = item['news_id']; commentCounts[id] = (commentCounts[id] ?? 0) + 1; } } catch (e) {} }
   Future<List<Map<String, dynamic>>> getComments(dynamic newsId) async { try { final result = await supabase.from('news_comments').select().eq('news_id', newsId).order('created_at', ascending: false); return List<Map<String, dynamic>>.from(result); } catch (e) { return []; } }
 
-  Future<bool> addComment(dynamic newsId, String userName, String text, {String? replyTo, String? replyToId, File? imageFile}) async {
+  Future<bool> addComment(dynamic newsId, String userName, String text, {String? replyTo, dynamic replyToId, File? imageFile}) async {
     if ((text.trim().isEmpty && imageFile == null)) return false;
     try {
       final clientId = await getClientId();
       String? imageUrl;
       if (imageFile != null) imageUrl = await uploadGeneralImage(imageFile, 'comments');
+      final parsedReplyToId = replyToId != null ? parseInt(replyToId) : null;
       await supabase.from('news_comments').insert({
         'news_id': newsId,
         'client_id': clientId,
@@ -654,7 +664,7 @@ class AppData extends ChangeNotifier {
         'user_name': currentDisplayName,
         'comment_text': text.trim(),
         'reply_to': replyTo,
-        'reply_to_id': replyToId,
+        'reply_to_id': parsedReplyToId,
         'image_url': imageUrl,
       });
       commentCounts[newsId] = (commentCounts[newsId] ?? 0) + 1; notifyListeners(); return true;
@@ -755,7 +765,6 @@ class AppData extends ChangeNotifier {
 
   Future<String> getClientId() async { final prefs = await SharedPreferences.getInstance(); String? id = prefs.getString('mr_otaku_client_id'); if (id == null || id.isEmpty) { id = DateTime.now().microsecondsSinceEpoch.toString(); await prefs.setString('mr_otaku_client_id', id); } return id; }
 
-  // ✅ دالة الإشعارات المعدلة لجلب إشعارات المستخدم فقط
   Future<void> loadNotifications() async {
     if (currentAccountId == null) return;
     try {
