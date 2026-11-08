@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../core/colors.dart';
 import '../core/helpers.dart';
 import '../data/app_data.dart';
+import 'manage_novels_page.dart'; // ✅ استيراد شاشة إدارة الروايات
 
 Future<bool> confirmDelete(BuildContext context, String itemName) async {
   final result = await showDialog<bool>(
@@ -45,6 +46,8 @@ class AdminPanelPage extends StatelessWidget {
       body: ListView(padding: const EdgeInsets.all(16), children: [
         AdminTile(icon: Icons.people, title: 'إدارة ومراقبة الحسابات', colorIndex: 0, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManagePointsPage(data: data)))),
         AdminTile(icon: Icons.campaign, title: 'الخبر المهم', colorIndex: 1, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManageImportantNewsPage(data: data)))),
+        // ✅ زر إدارة الروايات الجديد
+        AdminTile(icon: Icons.menu_book, title: 'إدارة الروايات', colorIndex: 3, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManageNovelsPage(data: data)))),
         AdminTile(icon: Icons.photo_library, title: 'إدارة معرض الصور', colorIndex: 2, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManageGalleryPage(data: data)))),
         AdminTile(icon: Icons.assignment_turned_in, title: 'نتائج الاختبارات', colorIndex: 3, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManageQuizResultsPage(data: data)))),
         AdminTile(icon: Icons.quiz, title: 'إدارة الأسئلة', colorIndex: 4, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ManageQuizPage(data: data)))),
