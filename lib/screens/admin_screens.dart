@@ -422,24 +422,58 @@ class _ManageNewsPageState extends State<ManageNewsPage> {
         t.clear();
         d.clear();
         _image = null;
+        
+        // ✅ إضافة متغير لمعرفة حالة النشر
+        bool isPosting = false;
+
         showDialog(context: context, builder: (context) => StatefulBuilder(builder: (context, setState) {
-          return AlertDialog(title: const Text('خبر جديد'), content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(controller: t, decoration: const InputDecoration(labelText: 'العنوان')),
-            TextField(controller: d, decoration: const InputDecoration(labelText: 'الوصف')),
-            const SizedBox(height: 10),
-            if (_image != null) Image.file(_image!, height: 120, width: double.infinity, fit: BoxFit.cover),
-            OutlinedButton.icon(onPressed: () async {
-              final picker = ImagePicker();
-              final picked = await picker.pickImage(source: ImageSource.gallery);
-              if (picked != null) setState(() => _image = File(picked.path));
-            }, icon: const Icon(Icons.image), label: const Text('اختيار صورة')),
-          ])), actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
-            FilledButton(onPressed: () async {
-              await widget.data.addNews(t.text, d.text, imageFile: _image);
-              if (context.mounted) Navigator.pop(context);
-            }, child: const Text('نشر')),
-          ]);
+          return AlertDialog(
+            title: const Text('خبر جديد'), 
+            content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(controller: t, decoration: const InputDecoration(labelText: 'العنوان')),
+              TextField(controller: d, decoration: const InputDecoration(labelText: 'الوصف')),
+              const SizedBox(height: 10),
+              if (_image != null) Image.file(_image!, height: 120, width: double.infinity, fit: BoxFit.cover),
+              OutlinedButton.icon(
+                onPressed: isPosting ? null : () async {
+                  final picker = ImagePicker();
+                  final picked = await picker.pickImage(source: ImageSource.gallery);
+                  if (picked != null) setState(() => _image = File(picked.path));
+                }, 
+                icon: const Icon(Icons.image), 
+                label: const Text('اختيار صورة')
+              ),
+            ])), 
+            actions: [
+              TextButton(
+                onPressed: isPosting ? null : () => Navigator.pop(context), 
+                child: const Text('إلغاء')
+              ),
+              FilledButton(
+                onPressed: isPosting ? null : () async {
+                  if (t.text.trim().isEmpty) return;
+                  
+                  setState(() => isPosting = true); // ✅ إظهار التحميل
+                  
+                  final ok = await widget.data.addNews(t.text, d.text, imageFile: _image);
+                  
+                  if (context.mounted) {
+                    setState(() => isPosting = false);
+                    if (ok) {
+                      Navigator.pop(context); // نجح النشر، أغلق النافذة
+                      showSnack(context, '✅ تم نشر الخبر بنجاح');
+                    } else {
+                      // فشل النشر (سيبقى في النافذة ليرى الخطأ)
+                      showSnack(context, '❌ فشل النشر، تحقق من حجم الصورة أو الاتصال');
+                    }
+                  }
+                }, 
+                child: isPosting 
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) // دائرة التحميل
+                  : const Text('نشر')
+              ),
+            ]
+          );
         }));
       }, child: const Icon(Icons.add)),
       body: AnimatedBuilder(animation: widget.data, builder: (context, _) => ListView.builder(itemCount: widget.data.news.length, itemBuilder: (_, i) => Card(child: ListTile(
