@@ -289,7 +289,7 @@ class AppData extends ChangeNotifier {
       await loadUnreadMessagesCount(); await loadSavedPosts();
       await loadFollowStats(); await loadCommentLikes(); await loadStories();
       await loadNovels(); 
-      
+
       if (_isAdmin) {
         final msgData = await supabase.from('messages').select().order('created_at', ascending: false); messages = List<Map<String, dynamic>>.from(msgData);
         final reqData = await supabase.from('purchase_requests').select().order('created_at', ascending: false); purchaseRequests = List<Map<String, dynamic>>.from(reqData);
@@ -343,15 +343,14 @@ class AppData extends ChangeNotifier {
     try { final result = await supabase.from('post_comments').select().eq('post_id', postId).order('created_at', ascending: true); return List<Map<String, dynamic>>.from(result); } catch (e) { return []; }
   }
 
-  // ✅ دالة إضافة تعليق معدلة: تحويل replyToId إلى bigint
   Future<bool> addPostComment(dynamic postId, String text, {String? replyTo, dynamic replyToId, File? imageFile}) async {
     if ((text.trim().isEmpty && imageFile == null) || currentAccountId == null) return false;
     try {
       String? imageUrl;
       if (imageFile != null) imageUrl = await uploadGeneralImage(imageFile, 'comments');
-      
+
       final parsedReplyToId = replyToId != null ? parseInt(replyToId) : null;
-      
+
       await supabase.from('post_comments').insert({
         'post_id': postId, 
         'account_id': currentAccountId, 
@@ -454,7 +453,7 @@ class AppData extends ChangeNotifier {
     try {
       String? coverUrl;
       if (coverFile != null) coverUrl = await uploadGeneralImage(coverFile, 'novels');
-      
+
       await supabase.from('novels').insert({
         'title': title.trim(),
         'author': author.trim().isEmpty ? 'برهان' : author.trim(),
@@ -474,7 +473,7 @@ class AppData extends ChangeNotifier {
     try {
       final imageUrl = await uploadGeneralImage(imageFile, 'novels');
       if (imageUrl == null) return false;
-      
+
       await supabase.from('novel_images').insert({
         'novel_id': novelId,
         'image_url': imageUrl,
@@ -516,10 +515,9 @@ class AppData extends ChangeNotifier {
   Future<bool> addStory(File imageFile) async {
     if (currentAccountId == null) return false;
     try {
-      final ext = safeExtension(imageFile.path);
-      final path = 'stories/${currentAccountId}_${DateTime.now().millisecondsSinceEpoch}.$ext';
-      await supabase.storage.from('news-images').upload(path, imageFile);
-      final url = supabase.storage.from('news-images').getPublicUrl(path);
+      // ✅ تعديل: استخدام دالة الضغط للستوري
+      final url = await uploadGeneralImage(imageFile, 'stories');
+      if (url == null) return false;
       final expires = DateTime.now().toUtc().add(const Duration(hours: 24)).toIso8601String();
       await supabase.from('stories').insert({'account_id': currentAccountId, 'user_name': currentDisplayName, 'image_url': url, 'expires_at': expires});
       await loadStories();
@@ -598,12 +596,32 @@ class AppData extends ChangeNotifier {
   Future<bool> clearImportantNews() async { if (!_isAdmin) return false; try { await supabase.from('important_news').delete().gte('id', 0); importantNews = ''; importantNewsUpdatedAt = ''; notifyListeners(); return true; } catch (e) { return false; } }
 
   Future<void> loadGallery() async { try { final result = await supabase.from('gallery').select().order('created_at', ascending: false); gallery = List<Map<String, dynamic>>.from(result); } catch (e) { gallery = []; } notifyListeners(); }
-  Future<String?> addGalleryImage(File imageFile, {String caption = ''}) async { if (currentAccountId == null) return 'لم يتم تسجيل الدخول.'; try { final ext = safeExtension(imageFile.path); final path = 'gallery/${currentAccountId}_${DateTime.now().millisecondsSinceEpoch}.$ext'; await supabase.storage.from('news-images').upload(path, imageFile); final url = supabase.storage.from('news-images').getPublicUrl(path); await supabase.from('gallery').insert({'account_id': currentAccountId, 'user_name': currentDisplayName, 'image_url': url, 'caption': caption.trim()}); await loadGallery(); return null; } catch (e) { return 'خطأ: $e'; } }
+  
+  Future<String?> addGalleryImage(File imageFile, {String caption = ''}) async { 
+    if (currentAccountId == null) return 'لم يتم تسجيل الدخول.'; 
+    try { 
+      // ✅ تعديل: استخدام دالة الضغط لمعرض الصور
+      final url = await uploadGeneralImage(imageFile, 'gallery');
+      if (url == null) return 'فشل رفع الصورة';
+      await supabase.from('gallery').insert({'account_id': currentAccountId, 'user_name': currentDisplayName, 'image_url': url, 'caption': caption.trim()}); 
+      await loadGallery(); 
+      return null; 
+    } catch (e) { return 'خطأ: $e'; } 
+  }
+  
   Future<bool> deleteGalleryImage(dynamic id) async { if (!_isAdmin) return false; try { await supabase.from('gallery').delete().eq('id', id); await loadGallery(); return true; } catch (e) { return false; } }
 
   Future<bool> updateAvatar(File imageFile) async {
     if (currentAccountId == null) return false;
-    try { final ext = safeExtension(imageFile.path); final path = 'avatars/${currentAccountId}_${DateTime.now().millisecondsSinceEpoch}.$ext'; await supabase.storage.from('news-images').upload(path, imageFile); final url = supabase.storage.from('news-images').getPublicUrl(path); await supabase.from('players').update({'avatar_url': url}).eq('account_id', currentAccountId!); for (final player in players) { if (parseInt(player['account_id']) == currentAccountId) player['avatar_url'] = url; } notifyListeners(); return true; } catch (e) { return false; }
+    try { 
+      // ✅ تعديل: استخدام دالة الضغط للصورة الشخصية
+      final url = await uploadGeneralImage(imageFile, 'avatars');
+      if (url == null) return false;
+      await supabase.from('players').update({'avatar_url': url}).eq('account_id', currentAccountId!); 
+      for (final player in players) { if (parseInt(player['account_id']) == currentAccountId) player['avatar_url'] = url; } 
+      notifyListeners(); 
+      return true; 
+    } catch (e) { return false; }
   }
 
   Future<String?> uploadGeneralImage(File file, String folder) async {
@@ -621,9 +639,9 @@ class AppData extends ChangeNotifier {
       final finalFile = compressedFile != null ? File(compressedFile.path) : file;
       final ext = safeExtension(finalFile.path);
       final path = '$folder/${DateTime.now().millisecondsSinceEpoch}.$ext';
-      
+
       await supabase.storage.from('news-images').upload(path, finalFile);
-      
+
       if (compressedFile != null) {
         try { await File(compressedFile.path).delete(); } catch (_) {}
       }
@@ -772,20 +790,20 @@ class AppData extends ChangeNotifier {
       final saved = prefs.getStringList('mr_otaku_read_notifications');
       _readNotifications.clear();
       if (saved != null) _readNotifications.addAll(saved);
-      
+
       final result = await supabase
           .from('notifications')
           .select()
           .or('target_account_id.is.null,target_account_id.eq.$currentAccountId')
           .order('created_at', ascending: false);
-          
+
       notifications = List<Map<String, dynamic>>.from(result);
       notifyListeners();
     } catch (e) {
       debugPrint('Load notifications error: $e');
     }
   }
-  
+
   bool isNotificationRead(dynamic id) => _readNotifications.contains(id.toString());
   Future<void> markNotificationRead(dynamic id) async { final prefs = await SharedPreferences.getInstance(); _readNotifications.add(id.toString()); await prefs.setStringList('mr_otaku_read_notifications', _readNotifications.toList()); notifyListeners(); }
   Future<void> markAllNotificationsRead() async { final prefs = await SharedPreferences.getInstance(); for (final item in notifications) _readNotifications.add(item['id'].toString()); await prefs.setStringList('mr_otaku_read_notifications', _readNotifications.toList()); notifyListeners(); }
@@ -812,7 +830,27 @@ class AppData extends ChangeNotifier {
   Future<bool> votePoll(dynamic optionId) async { if (activePoll == null || hasVotedInActivePoll) return false; try { final clientId = await getClientId(); await supabase.from('poll_votes').insert({'poll_id': activePoll!['id'], 'option_id': optionId, 'client_id': clientId, 'account_id': currentAccountId, 'user_name': currentDisplayName}); votedPollId = clean(activePoll!['id']); pollVoteCounts[optionId] = (pollVoteCounts[optionId] ?? 0) + 1; pollVoters.add({'option_id': optionId, 'account_id': currentAccountId, 'user_name': currentDisplayName}); notifyListeners(); return true; } catch (e) { return false; } }
   Future<bool> createPoll(String question, List<String> options) async { if (!_isAdmin || question.trim().isEmpty || options.length < 2) return false; try { await supabase.from('polls').update({'active': false}).eq('active', true); final poll = await supabase.from('polls').insert({'question': question.trim(), 'active': true}).select().single(); for (int i = 0; i < options.length; i++) { if (options[i].trim().isEmpty) continue; await supabase.from('poll_options').insert({'poll_id': poll['id'], 'option_text': options[i].trim(), 'position': i}); } await loadPoll(); return true; } catch (e) { return false; } }
 
-  Future<bool> addNews(String title, String description, {File? imageFile}) async { if (!_isAdmin || title.trim().isEmpty) return false; try { String? imageUrl; if (imageFile != null) { final ext = safeExtension(imageFile.path); final path = 'news_${DateTime.now().millisecondsSinceEpoch}.$ext'; await supabase.storage.from('news-images').upload(path, imageFile); imageUrl = supabase.storage.from('news-images').getPublicUrl(path); } await supabase.from('news').insert({'title': title.trim(), 'description': description.trim(), 'image_url': imageUrl}); await loadData(); return true; } catch (e) { return false; } }
+  Future<bool> addNews(String title, String description, {File? imageFile}) async { 
+    if (!_isAdmin || title.trim().isEmpty) return false; 
+    try { 
+      String? imageUrl; 
+      if (imageFile != null) { 
+        // ✅ تعديل: استخدام دالة الضغط لرفع صورة الخبر
+        imageUrl = await uploadGeneralImage(imageFile, 'news');
+        if (imageUrl == null) {
+          debugPrint('❌ فشل رفع صورة الخبر');
+          return false;
+        }
+      } 
+      await supabase.from('news').insert({'title': title.trim(), 'description': description.trim(), 'image_url': imageUrl}); 
+      await loadData(); 
+      return true; 
+    } catch (e) { 
+      debugPrint('❌ Add news error: $e');
+      return false; 
+    } 
+  }
+  
   Future<bool> deleteNews(dynamic id) async { if (!_isAdmin) return false; try { await supabase.from('news').delete().eq('id', id); await loadData(); return true; } catch (e) { return false; } }
 
   Future<bool> addPlayer(String name, int points, {int? accountId}) async { if (!_isAdmin || name.trim().isEmpty) return false; try { if (accountId != null) { final exists = await supabase.from('players').select('id').eq('account_id', accountId).maybeSingle(); if (exists != null) return false; } await supabase.from('players').insert({'name': name.trim(), 'points': max(0, points), if (accountId != null) 'account_id': accountId}); await loadData(); return true; } catch (e) { return false; } }
