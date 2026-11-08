@@ -23,7 +23,7 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
   List<Map<String, dynamic>> _followers = [];
   List<Map<String, dynamic>> _likers = [];
   List<Map<String, dynamic>> _savers = [];
-  List<Map<String, dynamic>> _replies = []; // ✅ ردود كاملة (وليس مجرد مستخدمين)
+  List<Map<String, dynamic>> _replies = [];
 
   @override
   void initState() {
@@ -37,6 +37,11 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
     if (myId == null) return;
 
     try {
+      // ✅ تأكد من تحميل اللاعبين أولاً
+      if (widget.data.players.isEmpty) {
+        await widget.data.loadPlayers();
+      }
+
       // 1. المتابعات
       final followData = await Supabase.instance.client
           .from('follows')
@@ -79,9 +84,8 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
             .toList();
       }
 
-      // 5. الردود على تعليقاتي ✅ (الإصلاح هنا)
+      // 5. الردود
       try {
-        // جلب ids تعليقاتي (كأرقام bigint، وليس نصوص)
         final myComments = await Supabase.instance.client
             .from('post_comments')
             .select('id, comment_text')
@@ -93,14 +97,11 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
             .toList();
 
         if (myCommentIds.isNotEmpty) {
-          // جلب الردود التي reply_to_id يشير إلى تعليقاتي
           final repliesData = await Supabase.instance.client
               .from('post_comments')
               .select()
-              .inFilter('reply_to_id', myCommentIds) // ✅ أرقام الآن
+              .inFilter('reply_to_id', myCommentIds)
               .order('created_at', ascending: false);
-
-          // تخزين الردود كصفوف كاملة (لنعرض نصها + من رد + على ماذا)
           _replies = List<Map<String, dynamic>>.from(repliesData);
         } else {
           _replies = [];
@@ -155,9 +156,7 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
     );
   }
 
-  // ✅ قائمة المستخدمين (للإعجابات، المتابعات، الحفظ)
-  Widget _buildUsersList(
-      List<Map<String, dynamic>> users, String action, IconData icon, Color color) {
+  Widget _buildUsersList(List<Map<String, dynamic>> users, String action, IconData icon, Color color) {
     if (users.isEmpty) {
       return Center(
         child: Column(
@@ -165,8 +164,7 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
           children: [
             Icon(icon, size: 80, color: Colors.grey.shade700),
             const SizedBox(height: 16),
-            Text('لا توجد $action بعد',
-                style: const TextStyle(fontSize: 16, color: Colors.grey)),
+            Text('لا توجد $action بعد', style: const TextStyle(fontSize: 16, color: Colors.grey)),
           ],
         ),
       );
@@ -185,27 +183,17 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
             child: ListTile(
               leading: CircleAvatar(
                 backgroundColor: color.withOpacity(0.2),
-                backgroundImage:
-                    avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null,
+                backgroundImage: avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null,
                 child: avatar.isEmpty ? Icon(Icons.person, color: color) : null,
               ),
-              title: Text(name,
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(action, style: TextStyle(fontSize: 12, color: color)),
               trailing: IconButton(
-                icon: const Icon(Icons.arrow_forward_ios,
-                    size: 16, color: AppColors.gold),
+                icon: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.gold),
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => UserProfilePage(
-                        data: widget.data,
-                        accountId: parseInt(user['account_id']),
-                        userName: name,
-                      ),
-                    ),
-                  );
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => UserProfilePage(data: widget.data, accountId: parseInt(user['account_id']), userName: name),
+                  ));
                 },
               ),
             ),
@@ -215,7 +203,6 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
     );
   }
 
-  // ✅ قائمة الردود (جديدة - تعرض نص الرد + من رد)
   Widget _buildRepliesList() {
     if (_replies.isEmpty) {
       return Center(
@@ -224,8 +211,7 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
           children: [
             Icon(Icons.reply, size: 80, color: Colors.grey.shade700),
             const SizedBox(height: 16),
-            const Text('لا توجد ردود على تعليقك بعد',
-                style: TextStyle(fontSize: 16, color: Colors.grey)),
+            const Text('لا توجد ردود على تعليقك بعد', style: TextStyle(fontSize: 16, color: Colors.grey)),
           ],
         ),
       );
@@ -237,8 +223,7 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
         itemCount: _replies.length,
         itemBuilder: (context, i) {
           final reply = _replies[i];
-          final replierName =
-              widget.data.displayNameForAccount(reply['account_id']);
+          final replierName = widget.data.displayNameForAccount(reply['account_id']);
           final avatar = widget.data.avatarForAccount(reply['account_id']);
           final text = clean(reply['comment_text']);
           final replyTo = clean(reply['reply_to']);
@@ -249,42 +234,25 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
             child: ListTile(
               leading: CircleAvatar(
                 backgroundColor: Colors.blue.withOpacity(0.2),
-                backgroundImage:
-                    avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null,
-                child: avatar.isEmpty
-                    ? const Icon(Icons.person, color: Colors.blue)
-                    : null,
+                backgroundImage: avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null,
+                child: avatar.isEmpty ? const Icon(Icons.person, color: Colors.blue) : null,
               ),
-              title: Text(replierName,
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(replierName, style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (replyTo.isNotEmpty)
-                    Text('رداً على تعليقك',
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: AppColors.gold,
-                            fontStyle: FontStyle.italic)),
+                    Text('رداً على تعليقك', style: TextStyle(fontSize: 11, color: AppColors.gold, fontStyle: FontStyle.italic)),
                   Text(text, style: const TextStyle(fontSize: 13)),
-                  Text(timeAgo(createdAt),
-                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                  Text(timeAgo(createdAt), style: const TextStyle(fontSize: 11, color: Colors.grey)),
                 ],
               ),
               trailing: IconButton(
-                icon: const Icon(Icons.arrow_forward_ios,
-                    size: 16, color: AppColors.gold),
+                icon: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.gold),
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => UserProfilePage(
-                        data: widget.data,
-                        accountId: parseInt(reply['account_id']),
-                        userName: replierName,
-                      ),
-                    ),
-                  );
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => UserProfilePage(data: widget.data, accountId: parseInt(reply['account_id']), userName: replierName),
+                  ));
                 },
               ),
             ),
