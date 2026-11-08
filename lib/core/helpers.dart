@@ -172,9 +172,41 @@ const List<RewardInfo> allRewards = [
   RewardInfo(name: 'تاج ملكي', icon: '👑', requiredPoints: 500),
 ];
 
+// ✅ الدالة المعدلة لضمان ظهور النص بشكل صحيح
 void showSnack(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(message), behavior: SnackBarBehavior.floating, backgroundColor: AppColors.cardBlack),
+  if (message.trim().isEmpty) return;
+  
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.hideCurrentSnackBar(); // إخفاء أي رسالة سابقة
+  
+  messenger.showSnackBar(
+    SnackBar(
+      content: Row(
+        children: [
+          const Icon(Icons.check_circle, color: Colors.white, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+      backgroundColor: Colors.green.shade700, // لون أخضر واضح ومقروء
+      behavior: SnackBarBehavior.floating,
+      margin: const EdgeInsets.all(16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      duration: const Duration(seconds: 3),
+    ),
   );
 }
 
