@@ -15,14 +15,15 @@ class ActivityInboxScreen extends StatefulWidget {
   State<ActivityInboxScreen> createState() => _ActivityInboxScreenState();
 }
 
-class _ActivityInboxScreenState extends State<ActivityInboxScreen> with SingleTickerProviderStateMixin {
+class _ActivityInboxScreenState extends State<ActivityInboxScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _loading = true;
 
   List<Map<String, dynamic>> _followers = [];
   List<Map<String, dynamic>> _likers = [];
   List<Map<String, dynamic>> _savers = [];
-  List<Map<String, dynamic>> _repliers = [];
+  List<Map<String, dynamic>> _replies = []; // ✅ ردود كاملة (وليس مجرد مستخدمين)
 
   @override
   void initState() {
@@ -34,59 +35,80 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen> with SingleTi
   Future<void> _loadAll() async {
     final myId = widget.data.currentAccountId;
     if (myId == null) return;
-    
+
     try {
-      // 1. جلب من تابعني (follows)
+      // 1. المتابعات
       final followData = await Supabase.instance.client
           .from('follows')
           .select('follower_id')
           .eq('following_id', myId);
-      final followerIds = followData.map((e) => parseInt(e['follower_id'])).toList();
-      _followers = widget.data.players.where((p) => followerIds.contains(parseInt(p['account_id']))).toList();
+      final followerIds =
+          followData.map((e) => parseInt(e['follower_id'])).toList();
+      _followers = widget.data.players
+          .where((p) => followerIds.contains(parseInt(p['account_id'])))
+          .toList();
 
-      // 2. جلب منشوراتي
+      // 2. منشوراتي
       final myPostsData = await Supabase.instance.client
           .from('posts')
           .select('id')
           .eq('account_id', myId);
       final myPostIds = myPostsData.map((e) => e['id']).toList();
 
-      // 3. جلب من أعجب بمنشوراتي (post_likes)
       if (myPostIds.isNotEmpty) {
+        // 3. الإعجابات
         final likesData = await Supabase.instance.client
             .from('post_likes')
             .select('account_id')
             .inFilter('post_id', myPostIds);
-        final likerIds = likesData.map((e) => parseInt(e['account_id'])).toSet().toList();
-        _likers = widget.data.players.where((p) => likerIds.contains(parseInt(p['account_id']))).toList();
+        final likerIds =
+            likesData.map((e) => parseInt(e['account_id'])).toSet().toList();
+        _likers = widget.data.players
+            .where((p) => likerIds.contains(parseInt(p['account_id'])))
+            .toList();
 
-        // 4. جلب من حفظ منشوراتي (saved_posts)
+        // 4. الحفظ
         final savesData = await Supabase.instance.client
             .from('saved_posts')
             .select('account_id')
             .inFilter('post_id', myPostIds);
-        final saverIds = savesData.map((e) => parseInt(e['account_id'])).toSet().toList();
-        _savers = widget.data.players.where((p) => saverIds.contains(parseInt(p['account_id']))).toList();
+        final saverIds =
+            savesData.map((e) => parseInt(e['account_id'])).toSet().toList();
+        _savers = widget.data.players
+            .where((p) => saverIds.contains(parseInt(p['account_id'])))
+            .toList();
       }
 
-      // 5. جلب من رد على تعليقاتي (post_comments)
+      // 5. الردود على تعليقاتي ✅ (الإصلاح هنا)
       try {
+        // جلب ids تعليقاتي (كأرقام bigint، وليس نصوص)
         final myComments = await Supabase.instance.client
             .from('post_comments')
-            .select('id')
+            .select('id, comment_text')
             .eq('account_id', myId);
-        final myCommentIds = myComments.map((e) => e['id'].toString()).toList();
+
+        final myCommentIds = myComments
+            .map((e) => parseInt(e['id']))
+            .where((id) => id > 0)
+            .toList();
 
         if (myCommentIds.isNotEmpty) {
-          final replies = await Supabase.instance.client
+          // جلب الردود التي reply_to_id يشير إلى تعليقاتي
+          final repliesData = await Supabase.instance.client
               .from('post_comments')
-              .select('account_id')
-              .inFilter('reply_to_id', myCommentIds);
-          final replierIds = replies.map((e) => parseInt(e['account_id'])).toSet().toList();
-          _repliers = widget.data.players.where((p) => replierIds.contains(parseInt(p['account_id']))).toList();
+              .select()
+              .inFilter('reply_to_id', myCommentIds) // ✅ أرقام الآن
+              .order('created_at', ascending: false);
+
+          // تخزين الردود كصفوف كاملة (لنعرض نصها + من رد + على ماذا)
+          _replies = List<Map<String, dynamic>>.from(repliesData);
+        } else {
+          _replies = [];
         }
-      } catch (_) {}
-      
+      } catch (e) {
+        debugPrint('Replies fetch error: $e');
+        _replies = [];
+      }
     } catch (e) {
       debugPrint('Activity inbox error: $e');
     }
@@ -124,16 +146,18 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen> with SingleTi
           : TabBarView(
               controller: _tabController,
               children: [
-                _buildList(_likers, 'أعجب بمنشورك', Icons.favorite, Colors.red),
-                _buildList(_followers, 'بدأ بمتابعتك', Icons.person_add, Colors.green),
-                _buildList(_savers, 'حفظ منشورك', Icons.bookmark, Colors.amber),
-                _buildList(_repliers, 'رد على تعليقك', Icons.reply, Colors.blue),
+                _buildUsersList(_likers, 'أعجب بمنشورك', Icons.favorite, Colors.red),
+                _buildUsersList(_followers, 'بدأ بمتابعتك', Icons.person_add, Colors.green),
+                _buildUsersList(_savers, 'حفظ منشورك', Icons.bookmark, Colors.amber),
+                _buildRepliesList(),
               ],
             ),
     );
   }
 
-  Widget _buildList(List<Map<String, dynamic>> users, String action, IconData icon, Color color) {
+  // ✅ قائمة المستخدمين (للإعجابات، المتابعات، الحفظ)
+  Widget _buildUsersList(
+      List<Map<String, dynamic>> users, String action, IconData icon, Color color) {
     if (users.isEmpty) {
       return Center(
         child: Column(
@@ -141,7 +165,8 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen> with SingleTi
           children: [
             Icon(icon, size: 80, color: Colors.grey.shade700),
             const SizedBox(height: 16),
-            Text('لا توجد $action بعد', style: const TextStyle(fontSize: 16, color: Colors.grey)),
+            Text('لا توجد $action بعد',
+                style: const TextStyle(fontSize: 16, color: Colors.grey)),
           ],
         ),
       );
@@ -160,17 +185,106 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen> with SingleTi
             child: ListTile(
               leading: CircleAvatar(
                 backgroundColor: color.withOpacity(0.2),
-                backgroundImage: avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null,
+                backgroundImage:
+                    avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null,
                 child: avatar.isEmpty ? Icon(Icons.person, color: color) : null,
               ),
-              title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(name,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(action, style: TextStyle(fontSize: 12, color: color)),
               trailing: IconButton(
-                icon: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.gold),
+                icon: const Icon(Icons.arrow_forward_ios,
+                    size: 16, color: AppColors.gold),
                 onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => UserProfilePage(data: widget.data, accountId: parseInt(user['account_id']), userName: name),
-                  ));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => UserProfilePage(
+                        data: widget.data,
+                        accountId: parseInt(user['account_id']),
+                        userName: name,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ✅ قائمة الردود (جديدة - تعرض نص الرد + من رد)
+  Widget _buildRepliesList() {
+    if (_replies.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.reply, size: 80, color: Colors.grey.shade700),
+            const SizedBox(height: 16),
+            const Text('لا توجد ردود على تعليقك بعد',
+                style: TextStyle(fontSize: 16, color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _loadAll,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: _replies.length,
+        itemBuilder: (context, i) {
+          final reply = _replies[i];
+          final replierName =
+              widget.data.displayNameForAccount(reply['account_id']);
+          final avatar = widget.data.avatarForAccount(reply['account_id']);
+          final text = clean(reply['comment_text']);
+          final replyTo = clean(reply['reply_to']);
+          final createdAt = clean(reply['created_at']);
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Colors.blue.withOpacity(0.2),
+                backgroundImage:
+                    avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null,
+                child: avatar.isEmpty
+                    ? const Icon(Icons.person, color: Colors.blue)
+                    : null,
+              ),
+              title: Text(replierName,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (replyTo.isNotEmpty)
+                    Text('رداً على تعليقك',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.gold,
+                            fontStyle: FontStyle.italic)),
+                  Text(text, style: const TextStyle(fontSize: 13)),
+                  Text(timeAgo(createdAt),
+                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                ],
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.arrow_forward_ios,
+                    size: 16, color: AppColors.gold),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => UserProfilePage(
+                        data: widget.data,
+                        accountId: parseInt(reply['account_id']),
+                        userName: replierName,
+                      ),
+                    ),
+                  );
                 },
               ),
             ),
