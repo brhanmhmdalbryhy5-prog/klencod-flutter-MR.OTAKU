@@ -20,6 +20,7 @@ import 'stories_page.dart';
 import 'games_screens.dart';
 import 'admin_notifications_screen.dart';
 import 'activity_inbox_screen.dart';
+import 'novels_page.dart'; // ✅ استيراد شاشة الروايات
 
 // =======================================================
 // 1. الحاوية الرئيسية (مع شريط التحميل)
@@ -351,6 +352,49 @@ class _HomeTabState extends State<HomeTab> {
                   ),
                 ),
               ),
+            const SizedBox(height: 16),
+            // ✅ مربع الروايات
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.purple.shade900, Colors.blueGrey.shade900],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(color: Colors.purple.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => NovelsPage(data: widget.data))),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.auto_stories, size: 40, color: Colors.white),
+                        const SizedBox(width: 16),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('رواية من تأليف برهان', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                              SizedBox(height: 4),
+                              Text('اقرأ أحدث الروايات والقصص المصورة', style: TextStyle(fontSize: 12, color: Colors.white70)),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
             if (widget.data.importantNews.trim().isNotEmpty)
               Padding(
@@ -1213,4 +1257,4 @@ class NotificationsPage extends StatelessWidget {
       });
     }));
   }
-} 
+}
