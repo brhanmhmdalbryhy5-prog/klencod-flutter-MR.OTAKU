@@ -11,11 +11,10 @@ import 'data/app_data.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home_screens.dart';
 
-// ✅ تهيئة كائن الإشعارات المحلية
+// ✅ كائن الإشعارات المحلية
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
-// ✅ قناة الإشعارات عالية الأولوية (تظهر كـ Heads-up)
 const AndroidNotificationChannel highImportanceChannel = AndroidNotificationChannel(
   'high_importance_channel',
   'إشعارات مهمة',
@@ -25,50 +24,33 @@ const AndroidNotificationChannel highImportanceChannel = AndroidNotificationChan
   enableVibration: true,
 );
 
-// ✅ معالج الإشعارات في الخلفية (عند إغلاق التطبيق)
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  debugPrint('🔔 Background message: ${message.notification?.title}');
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. تهيئة Supabase
+  // 1. تهيئة Supabase (ضروري جداً قبل تشغيل التطبيق)
   await Supabase.initialize(
     url: 'https://sekchgllbimoedsjoumi.supabase.co',
     anonKey: 'sb_publishable_EZLVSUviR39RXi6OP3OqfQ_3j7vMZcU',
   );
 
-  // 2. تهيئة Firebase
+  // 2. تهيئة Firebase (داخل try-catch حتى لا يعلق التطبيق إذا فشل)
   try {
     await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   } catch (e) {
     debugPrint('Firebase init error: $e');
   }
 
-  // 3. تسجيل معالج الخلفية
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-  // 4. تهيئة الإشعارات المحلية
-  const AndroidInitializationSettings initializationSettingsAndroid =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
-  const InitializationSettings initializationSettings =
-      InitializationSettings(android: initializationSettingsAndroid);
-  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
-
-  // 5. إنشاء قناة الإشعارات عالية الأولوية
-  await flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>()
-      ?.createNotificationChannel(highImportanceChannel);
-
-  // 6. تهيئة التخزين المحلي والثيم
+  // 3. تهيئة التخزين المحلي والثيم
   await LocalCache.init();
   await ThemeManager.instance.load();
 
-  // 7. تشغيل التطبيق
+  // 4. تشغيل التطبيق فوراً (بدون انتظار الإشعارات)
   runApp(const MrOtakuApp());
 }
 
@@ -90,46 +72,59 @@ class _MrOtakuAppState extends State<MrOtakuApp> {
     _setupNotifications();
   }
 
-  // ✅ إعداد الإشعارات (الاستماع أثناء فتح التطبيق)
+  // ✅ إعداد الإشعارات (يتم في الخلفية ولا يمنع فتح التطبيق)
   void _setupNotifications() {
-    // الاستماع للإشعارات أثناء فتح التطبيق
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('🔔 Foreground message: ${message.notification?.title}');
-      
-      RemoteNotification? notification = message.notification;
-      AndroidNotification? android = message.notification?.android;
+    Future.microtask(() async {
+      try {
+        // تهيئة الإشعارات المحلية
+        const AndroidInitializationSettings initializationSettingsAndroid =
+            AndroidInitializationSettings('@mipmap/ic_launcher');
+        const InitializationSettings initializationSettings =
+            InitializationSettings(android: initializationSettingsAndroid);
+        
+        await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+        await flutterLocalNotificationsPlugin
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.createNotificationChannel(highImportanceChannel);
 
-      if (notification != null) {
-        // عرض الإشعار كـ Heads-up (مثل واتساب)
-        flutterLocalNotificationsPlugin.show(
-          notification.hashCode,
-          notification.title,
-          notification.body,
-          NotificationDetails(
-            android: AndroidNotificationDetails(
-              highImportanceChannel.id,
-              highImportanceChannel.name,
-              channelDescription: highImportanceChannel.description,
-              importance: Importance.max,
-              priority: Priority.high,
-              playSound: true,
-              enableVibration: true,
-              icon: '@mipmap/ic_launcher',
-            ),
-          ),
+        // طلب إذن الإشعارات
+        NotificationSettings settings = await FirebaseMessaging.instance.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
         );
-      }
-    });
 
-    // عند النقر على الإشعار (فتح التطبيق من الإشعار)
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      debugPrint('🔔 Notification opened: ${message.notification?.title}');
-      // يمكنك إضافة الانتقال لصفحة الإشعارات هنا
+        if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+          await FirebaseMessaging.instance.subscribeToTopic('all_users');
+        }
+
+        // الاستماع للإشعارات أثناء فتح التطبيق
+        FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+          if (message.notification != null) {
+            flutterLocalNotificationsPlugin.show(
+              message.hashCode,
+              message.notification!.title,
+              message.notification!.body,
+              NotificationDetails(
+                android: AndroidNotificationDetails(
+                  highImportanceChannel.id,
+                  highImportanceChannel.name,
+                  importance: Importance.max,
+                  priority: Priority.high,
+                  icon: '@mipmap/ic_launcher',
+                ),
+              ),
+            );
+          }
+        });
+      } catch (e) {
+        debugPrint('❌ Notification setup error: $e');
+      }
     });
   }
 
   Future<void> start() async {
-    // 8. تحميل الحساب المحلي
     try {
       await data.loadLocalAccount();
     } catch (e) {
@@ -140,42 +135,23 @@ class _MrOtakuAppState extends State<MrOtakuApp> {
       setState(() => checking = false);
     }
 
-    // 9. طلب إذن الإشعارات وحفظ التوكن
-    Future.microtask(() async {
-      try {
-        NotificationSettings settings = await FirebaseMessaging.instance.requestPermission(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
-
-        if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-          await FirebaseMessaging.instance.subscribeToTopic('all_users');
-          debugPrint('✅ Subscribed to FCM all_users topic');
-        }
-
-        if (data.hasAccount && data.currentAccountId != null) {
-          final token = await FirebaseMessaging.instance.getToken();
-          if (token != null) {
-            await Supabase.instance.client.from('device_tokens').upsert({
-              'account_id': data.currentAccountId,
-              'fcm_token': token,
-            }, onConflict: 'account_id,fcm_token');
-            debugPrint('✅ FCM Token saved for account: ${data.currentAccountId}');
-          }
-        }
-      } catch (e) {
-        debugPrint('❌ FCM setup error: $e');
-      }
-    });
-
-    // 10. تحميل البيانات في الخلفية
     Future.microtask(() async {
       try {
         if (data.hasAccount) {
           final admin = await checkAdminSession(data);
           await data.setAdminSession(admin);
           await data.loadData();
+
+          // حفظ توكن الهاتف
+          if (data.currentAccountId != null) {
+            final token = await FirebaseMessaging.instance.getToken();
+            if (token != null) {
+              await Supabase.instance.client.from('device_tokens').upsert({
+                'account_id': data.currentAccountId,
+                'fcm_token': token,
+              }, onConflict: 'account_id,fcm_token');
+            }
+          }
         }
       } catch (e) {
         debugPrint('Background load error: $e');
