@@ -4,7 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide toInt;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart'; // ✅ إضافة الضغط
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../core/colors.dart';
 import '../core/helpers.dart';
 
@@ -49,7 +49,7 @@ class AppData extends ChangeNotifier {
   List<Map<String, dynamic>> savedPosts = [];
   List<Map<String, dynamic>> complaints = [];
   List<Map<String, dynamic>> stories = [];
-  List<Map<String, dynamic>> novels = []; // ✅ إضافة الروايات
+  List<Map<String, dynamic>> novels = []; // ✅ الروايات
 
   final Map<dynamic, int> postLikeCounts = {};
   final Set<String> likedPosts = {};
@@ -184,9 +184,7 @@ class AppData extends ChangeNotifier {
 
   Future<void> updateLastSeen() async {
     if (currentAccountId == null) return;
-    try { 
-      await supabase.from('players').update({'last_seen': DateTime.now().toUtc().toIso8601String()}).eq('account_id', currentAccountId!); 
-    } catch (e) { debugPrint('Update last seen error: $e'); }
+    try { await supabase.from('players').update({'last_seen': DateTime.now().toUtc().toIso8601String()}).eq('account_id', currentAccountId!); } catch (e) { debugPrint('Update last seen error: $e'); }
   }
 
   Future<void> loadLocalAccount() async {
@@ -290,8 +288,8 @@ class AppData extends ChangeNotifier {
       await loadGallery(); await loadUserRewards();
       await loadUnreadMessagesCount(); await loadSavedPosts();
       await loadFollowStats(); await loadCommentLikes(); await loadStories();
-      await loadNovels(); // ✅ إضافة تحميل الروايات هنا
-      
+      await loadNovels(); // ✅ الروايات
+
       if (_isAdmin) {
         final msgData = await supabase.from('messages').select().order('created_at', ascending: false); messages = List<Map<String, dynamic>>.from(msgData);
         final reqData = await supabase.from('purchase_requests').select().order('created_at', ascending: false); purchaseRequests = List<Map<String, dynamic>>.from(reqData);
@@ -757,7 +755,28 @@ class AppData extends ChangeNotifier {
 
   Future<String> getClientId() async { final prefs = await SharedPreferences.getInstance(); String? id = prefs.getString('mr_otaku_client_id'); if (id == null || id.isEmpty) { id = DateTime.now().microsecondsSinceEpoch.toString(); await prefs.setString('mr_otaku_client_id', id); } return id; }
 
-  Future<void> loadNotifications() async { try { final prefs = await SharedPreferences.getInstance(); final saved = prefs.getStringList('mr_otaku_read_notifications'); _readNotifications.clear(); if (saved != null) _readNotifications.addAll(saved); final result = await supabase.from('notifications').select().order('created_at', ascending: false); notifications = List<Map<String, dynamic>>.from(result); } catch (e) {} }
+  // ✅ دالة الإشعارات المعدلة لجلب إشعارات المستخدم فقط
+  Future<void> loadNotifications() async {
+    if (currentAccountId == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getStringList('mr_otaku_read_notifications');
+      _readNotifications.clear();
+      if (saved != null) _readNotifications.addAll(saved);
+      
+      final result = await supabase
+          .from('notifications')
+          .select()
+          .or('target_account_id.is.null,target_account_id.eq.$currentAccountId')
+          .order('created_at', ascending: false);
+          
+      notifications = List<Map<String, dynamic>>.from(result);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Load notifications error: $e');
+    }
+  }
+  
   bool isNotificationRead(dynamic id) => _readNotifications.contains(id.toString());
   Future<void> markNotificationRead(dynamic id) async { final prefs = await SharedPreferences.getInstance(); _readNotifications.add(id.toString()); await prefs.setStringList('mr_otaku_read_notifications', _readNotifications.toList()); notifyListeners(); }
   Future<void> markAllNotificationsRead() async { final prefs = await SharedPreferences.getInstance(); for (final item in notifications) _readNotifications.add(item['id'].toString()); await prefs.setStringList('mr_otaku_read_notifications', _readNotifications.toList()); notifyListeners(); }
@@ -871,7 +890,7 @@ class AppData extends ChangeNotifier {
     }
   }
 
-  // ================= VIEWED POSTS (المنشورات المشاهدة) =================
+  // ================= VIEWED POSTS =================
   Future<void> loadViewedPosts() async {
     if (_viewedPostsLoaded) return;
     try {
