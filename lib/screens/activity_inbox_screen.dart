@@ -20,9 +20,10 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
   late TabController _tabController;
   bool _loading = true;
 
-  List<Map<String, dynamic>> _followers = [];
-  List<Map<String, dynamic>> _likers = [];
-  List<Map<String, dynamic>> _savers = [];
+  // ✅ تغيير النوع إلى List<int> لجلب الأرقام فقط، وتجنب تحميل اللاعبين هنا
+  List<int> _followerIds = [];
+  List<int> _likerIds = [];
+  List<int> _saverIds = [];
   List<Map<String, dynamic>> _replies = [];
 
   @override
@@ -37,28 +38,19 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
     if (myId == null) return;
 
     try {
-      // ✅ تأكد من تحميل اللاعبين أولاً
-      if (widget.data.players.isEmpty) {
-        await widget.data.loadPlayers();
-      }
-
-      // 1. المتابعات
+      // 1. المتابعات (من يتابعني)
       final followData = await Supabase.instance.client
           .from('follows')
           .select('follower_id')
           .eq('following_id', myId);
-      final followerIds =
-          followData.map((e) => parseInt(e['follower_id'])).toList();
-      _followers = widget.data.players
-          .where((p) => followerIds.contains(parseInt(p['account_id'])))
-          .toList();
+      _followerIds = followData.map((e) => parseInt(e['follower_id'])).toList();
 
       // 2. منشوراتي
       final myPostsData = await Supabase.instance.client
           .from('posts')
           .select('id')
           .eq('account_id', myId);
-      final myPostIds = myPostsData.map((e) => e['id']).toList();
+      final myPostIds = myPostsData.map((e) => parseInt(e['id'])).toList();
 
       if (myPostIds.isNotEmpty) {
         // 3. الإعجابات
@@ -66,35 +58,27 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
             .from('post_likes')
             .select('account_id')
             .inFilter('post_id', myPostIds);
-        final likerIds =
-            likesData.map((e) => parseInt(e['account_id'])).toSet().toList();
-        _likers = widget.data.players
-            .where((p) => likerIds.contains(parseInt(p['account_id'])))
-            .toList();
+        _likerIds = likesData.map((e) => parseInt(e['account_id'])).toSet().toList();
 
         // 4. الحفظ
         final savesData = await Supabase.instance.client
             .from('saved_posts')
             .select('account_id')
             .inFilter('post_id', myPostIds);
-        final saverIds =
-            savesData.map((e) => parseInt(e['account_id'])).toSet().toList();
-        _savers = widget.data.players
-            .where((p) => saverIds.contains(parseInt(p['account_id'])))
-            .toList();
+        _saverIds = savesData.map((e) => parseInt(e['account_id'])).toSet().toList();
+      } else {
+        _likerIds = [];
+        _saverIds = [];
       }
 
       // 5. الردود
       try {
         final myComments = await Supabase.instance.client
             .from('post_comments')
-            .select('id, comment_text')
+            .select('id')
             .eq('account_id', myId);
 
-        final myCommentIds = myComments
-            .map((e) => parseInt(e['id']))
-            .where((id) => id > 0)
-            .toList();
+        final myCommentIds = myComments.map((e) => parseInt(e['id'])).where((id) => id > 0).toList();
 
         if (myCommentIds.isNotEmpty) {
           final repliesData = await Supabase.instance.client
@@ -113,6 +97,8 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
     } catch (e) {
       debugPrint('Activity inbox error: $e');
     }
+    
+    // ✅ إيقاف التحميل فقط بعد انتهاء جلب البيانات من السيرفر
     if (mounted) setState(() => _loading = false);
   }
 
@@ -125,39 +111,46 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
   @override
   Widget build(BuildContext context) {
     final primary = ThemeManager.instance.primaryColor;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('صندوق التفاعلات'),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: primary,
-          labelColor: primary,
-          unselectedLabelColor: Colors.grey,
-          isScrollable: true,
-          tabs: const [
-            Tab(icon: Icon(Icons.favorite, size: 20), text: 'إعجابات'),
-            Tab(icon: Icon(Icons.person_add, size: 20), text: 'متابعات'),
-            Tab(icon: Icon(Icons.bookmark, size: 20), text: 'حفظ'),
-            Tab(icon: Icon(Icons.reply, size: 20), text: 'ردود'),
-          ],
-        ),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
+    
+    // ✅ استخدام AnimatedBuilder لضمان تحديث الواجهة فوراً عندما يقوم AppData بتحميل بيانات اللاعبين في الخلفية
+    return AnimatedBuilder(
+      animation: widget.data,
+      builder: (context, _) {
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('صندوق التفاعلات'),
+            bottom: TabBar(
               controller: _tabController,
-              children: [
-                _buildUsersList(_likers, 'أعجب بمنشورك', Icons.favorite, Colors.red),
-                _buildUsersList(_followers, 'بدأ بمتابعتك', Icons.person_add, Colors.green),
-                _buildUsersList(_savers, 'حفظ منشورك', Icons.bookmark, Colors.amber),
-                _buildRepliesList(),
+              indicatorColor: primary,
+              labelColor: primary,
+              unselectedLabelColor: Colors.grey,
+              isScrollable: true,
+              tabs: const [
+                Tab(icon: Icon(Icons.favorite, size: 20), text: 'إعجابات'),
+                Tab(icon: Icon(Icons.person_add, size: 20), text: 'متابعات'),
+                Tab(icon: Icon(Icons.bookmark, size: 20), text: 'حفظ'),
+                Tab(icon: Icon(Icons.reply, size: 20), text: 'ردود'),
               ],
             ),
+          ),
+          body: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildUsersList(_likerIds, 'أعجب بمنشورك', Icons.favorite, Colors.red),
+                    _buildUsersList(_followerIds, 'بدأ بمتابعتك', Icons.person_add, Colors.green),
+                    _buildUsersList(_saverIds, 'حفظ منشورك', Icons.bookmark, Colors.amber),
+                    _buildRepliesList(),
+                  ],
+                ),
+        );
+      },
     );
   }
 
-  Widget _buildUsersList(List<Map<String, dynamic>> users, String action, IconData icon, Color color) {
-    if (users.isEmpty) {
+  Widget _buildUsersList(List<int> userIds, String action, IconData icon, Color color) {
+    if (userIds.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -169,15 +162,18 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
         ),
       );
     }
+    
     return RefreshIndicator(
       onRefresh: _loadAll,
       child: ListView.builder(
         padding: const EdgeInsets.all(12),
-        itemCount: users.length,
+        itemCount: userIds.length,
         itemBuilder: (context, i) {
-          final user = users[i];
-          final name = widget.data.displayNameForAccount(user['account_id']);
-          final avatar = clean(user['avatar_url']);
+          final accId = userIds[i];
+          // ✅ سيتم جلب الاسم والصورة من AppData فور تحميلها
+          final name = widget.data.displayNameForAccount(accId);
+          final avatar = widget.data.avatarForAccount(accId);
+          
           return Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(
@@ -186,13 +182,13 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
                 backgroundImage: avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null,
                 child: avatar.isEmpty ? Icon(Icons.person, color: color) : null,
               ),
-              title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(name.isNotEmpty ? name : 'مستخدم $accId', style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(action, style: TextStyle(fontSize: 12, color: color)),
               trailing: IconButton(
                 icon: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.gold),
                 onPressed: () {
                   Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => UserProfilePage(data: widget.data, accountId: parseInt(user['account_id']), userName: name),
+                    builder: (_) => UserProfilePage(data: widget.data, accountId: accId, userName: name),
                   ));
                 },
               ),
@@ -223,8 +219,9 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
         itemCount: _replies.length,
         itemBuilder: (context, i) {
           final reply = _replies[i];
-          final replierName = widget.data.displayNameForAccount(reply['account_id']);
-          final avatar = widget.data.avatarForAccount(reply['account_id']);
+          final accId = parseInt(reply['account_id']);
+          final replierName = widget.data.displayNameForAccount(accId);
+          final avatar = widget.data.avatarForAccount(accId);
           final text = clean(reply['comment_text']);
           final replyTo = clean(reply['reply_to']);
           final createdAt = clean(reply['created_at']);
@@ -237,7 +234,7 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
                 backgroundImage: avatar.isNotEmpty ? CachedNetworkImageProvider(avatar) : null,
                 child: avatar.isEmpty ? const Icon(Icons.person, color: Colors.blue) : null,
               ),
-              title: Text(replierName, style: const TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(replierName.isNotEmpty ? replierName : 'مستخدم $accId', style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -251,7 +248,7 @@ class _ActivityInboxScreenState extends State<ActivityInboxScreen>
                 icon: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.gold),
                 onPressed: () {
                   Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => UserProfilePage(data: widget.data, accountId: parseInt(reply['account_id']), userName: replierName),
+                    builder: (_) => UserProfilePage(data: widget.data, accountId: accId, userName: replierName),
                   ));
                 },
               ),
