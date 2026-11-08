@@ -2,6 +2,7 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services" // ✅ تم نقل هذا السطر إلى هنا
 }
 
 def localProperties = new Properties()
@@ -43,6 +44,7 @@ android {
         targetSdk = 34
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName
+        multiDexEnabled true // ✅ تفعيل multiDex لتجنب مشاكل تثبيت الإشعارات
     }
 
     buildTypes {
@@ -54,10 +56,12 @@ android {
 
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    
+    // ✅ مكتبات Firebase الأساسية
+    implementation platform('com.google.firebase:firebase-bom:33.7.0')
+    implementation 'com.google.firebase:firebase-messaging'
 }
 
 flutter {
     source = "../.."
 }
-
-apply plugin: 'com.google.gms.google-services'
