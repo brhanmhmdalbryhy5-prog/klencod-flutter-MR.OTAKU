@@ -515,7 +515,6 @@ class AppData extends ChangeNotifier {
   Future<bool> addStory(File imageFile) async {
     if (currentAccountId == null) return false;
     try {
-      // ✅ تعديل: استخدام دالة الضغط للستوري
       final url = await uploadGeneralImage(imageFile, 'stories');
       if (url == null) return false;
       final expires = DateTime.now().toUtc().add(const Duration(hours: 24)).toIso8601String();
@@ -596,11 +595,10 @@ class AppData extends ChangeNotifier {
   Future<bool> clearImportantNews() async { if (!_isAdmin) return false; try { await supabase.from('important_news').delete().gte('id', 0); importantNews = ''; importantNewsUpdatedAt = ''; notifyListeners(); return true; } catch (e) { return false; } }
 
   Future<void> loadGallery() async { try { final result = await supabase.from('gallery').select().order('created_at', ascending: false); gallery = List<Map<String, dynamic>>.from(result); } catch (e) { gallery = []; } notifyListeners(); }
-  
+
   Future<String?> addGalleryImage(File imageFile, {String caption = ''}) async { 
     if (currentAccountId == null) return 'لم يتم تسجيل الدخول.'; 
     try { 
-      // ✅ تعديل: استخدام دالة الضغط لمعرض الصور
       final url = await uploadGeneralImage(imageFile, 'gallery');
       if (url == null) return 'فشل رفع الصورة';
       await supabase.from('gallery').insert({'account_id': currentAccountId, 'user_name': currentDisplayName, 'image_url': url, 'caption': caption.trim()}); 
@@ -608,13 +606,12 @@ class AppData extends ChangeNotifier {
       return null; 
     } catch (e) { return 'خطأ: $e'; } 
   }
-  
+
   Future<bool> deleteGalleryImage(dynamic id) async { if (!_isAdmin) return false; try { await supabase.from('gallery').delete().eq('id', id); await loadGallery(); return true; } catch (e) { return false; } }
 
   Future<bool> updateAvatar(File imageFile) async {
     if (currentAccountId == null) return false;
     try { 
-      // ✅ تعديل: استخدام دالة الضغط للصورة الشخصية
       final url = await uploadGeneralImage(imageFile, 'avatars');
       if (url == null) return false;
       await supabase.from('players').update({'avatar_url': url}).eq('account_id', currentAccountId!); 
@@ -624,31 +621,48 @@ class AppData extends ChangeNotifier {
     } catch (e) { return false; }
   }
 
+  // ✅ دالة رفع الصور المعدلة لطباعة الأخطاء الحقيقية
   Future<String?> uploadGeneralImage(File file, String folder) async {
     try {
-      // ✅ ضغط الصورة قبل الرفع
-      final compressedFile = await FlutterImageCompress.compressAndGetFile(
-        file.absolute.path,
-        '${file.parent.path}/compressed_${DateTime.now().millisecondsSinceEpoch}.jpg',
-        quality: 70,
-        minWidth: 1080,
-        minHeight: 1080,
-        format: CompressFormat.jpeg,
-      );
+      File finalFile = file;
+      
+      // 1. محاولة ضغط الصورة (مع حماية إذا فشل الضغط)
+      try {
+        final compressedFile = await FlutterImageCompress.compressAndGetFile(
+          file.absolute.path,
+          '${file.parent.path}/compressed_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          quality: 70,
+          minWidth: 1080,
+          minHeight: 1080,
+          format: CompressFormat.jpeg,
+        );
+        if (compressedFile != null) {
+          finalFile = File(compressedFile.path);
+        }
+      } catch (compressError) {
+        debugPrint('⚠️ Compression failed, using original: $compressError');
+      }
 
-      final finalFile = compressedFile != null ? File(compressedFile.path) : file;
       final ext = safeExtension(finalFile.path);
       final path = '$folder/${DateTime.now().millisecondsSinceEpoch}.$ext';
 
-      await supabase.storage.from('news-images').upload(path, finalFile);
+      // 2. محاولة الرفع مع طباعة الخطأ الحقيقي
+      try {
+        await supabase.storage.from('news-images').upload(path, finalFile);
+      } catch (uploadError) {
+        // ✅ هذا السطر سيطبع سبب الفشل في الكونسول
+        debugPrint('❌ Supabase Upload Error: $uploadError');
+        return null;
+      }
 
-      if (compressedFile != null) {
-        try { await File(compressedFile.path).delete(); } catch (_) {}
+      // 3. تنظيف الملف المؤقت
+      if (finalFile.path != file.path) {
+        try { await File(finalFile.path).delete(); } catch (_) {}
       }
 
       return supabase.storage.from('news-images').getPublicUrl(path);
     } catch (e) {
-      debugPrint('Upload image error: $e');
+      debugPrint('❌ General Upload Image Error: $e');
       return null;
     }
   }
@@ -835,7 +849,6 @@ class AppData extends ChangeNotifier {
     try { 
       String? imageUrl; 
       if (imageFile != null) { 
-        // ✅ تعديل: استخدام دالة الضغط لرفع صورة الخبر
         imageUrl = await uploadGeneralImage(imageFile, 'news');
         if (imageUrl == null) {
           debugPrint('❌ فشل رفع صورة الخبر');
@@ -850,7 +863,7 @@ class AppData extends ChangeNotifier {
       return false; 
     } 
   }
-  
+
   Future<bool> deleteNews(dynamic id) async { if (!_isAdmin) return false; try { await supabase.from('news').delete().eq('id', id); await loadData(); return true; } catch (e) { return false; } }
 
   Future<bool> addPlayer(String name, int points, {int? accountId}) async { if (!_isAdmin || name.trim().isEmpty) return false; try { if (accountId != null) { final exists = await supabase.from('players').select('id').eq('account_id', accountId).maybeSingle(); if (exists != null) return false; } await supabase.from('players').insert({'name': name.trim(), 'points': max(0, points), if (accountId != null) 'account_id': accountId}); await loadData(); return true; } catch (e) { return false; } }
