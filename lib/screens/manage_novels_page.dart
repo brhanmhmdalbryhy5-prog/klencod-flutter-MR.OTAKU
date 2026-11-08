@@ -7,14 +7,13 @@ import '../core/helpers.dart';
 import '../data/app_data.dart';
 
 class ManageNovelsPage extends StatefulWidget {
-  const ManageNovelsPage({super.key});
+  final AppData data;
+  const ManageNovelsPage({super.key, required this.data});
   @override
   State<ManageNovelsPage> createState() => _ManageNovelsPageState();
 }
 
 class _ManageNovelsPageState extends State<ManageNovelsPage> {
-  final AppData _data = AppData(); // ملاحظة: في مشروعك الحقيقي، يجب تمرير data من الأعلى، لكن للتبسيط سنستخدم نسخة جديدة هنا (أو استخدم InheritedWidget/Provider إذا كنت تستخدمه)
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -24,13 +23,13 @@ class _ManageNovelsPageState extends State<ManageNovelsPage> {
         child: const Icon(Icons.add),
       ),
       body: AnimatedBuilder(
-        animation: _data,
+        animation: widget.data,
         builder: (context, _) {
-          if (_data.novels.isEmpty) return const Center(child: Text('لا توجد روايات مضافة.'));
+          if (widget.data.novels.isEmpty) return const Center(child: Text('لا توجد روايات مضافة.'));
           return ListView.builder(
-            itemCount: _data.novels.length,
+            itemCount: widget.data.novels.length,
             itemBuilder: (_, i) {
-              final novel = _data.novels[i];
+              final novel = widget.data.novels[i];
               final cover = clean(novel['cover_url']);
               return Card(
                 child: ListTile(
@@ -42,13 +41,13 @@ class _ManageNovelsPageState extends State<ManageNovelsPage> {
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () async {
-                      if (await _data.deleteNovel(novel['id'])) {
+                      if (await widget.data.deleteNovel(novel['id'])) {
                         showSnack(context, 'تم حذف الرواية');
                       }
                     },
                   ),
                   onTap: () => Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => ManageNovelImagesPage(novel: novel),
+                    builder: (_) => ManageNovelImagesPage(data: widget.data, novel: novel),
                   )),
                 ),
               );
@@ -96,7 +95,7 @@ class _ManageNovelsPageState extends State<ManageNovelsPage> {
               FilledButton(
                 onPressed: () async {
                   if (title.text.trim().isEmpty) return;
-                  await _data.addNovel(title.text, author.text, desc.text, coverFile);
+                  await widget.data.addNovel(title.text, author.text, desc.text, coverFile);
                   if (ctx.mounted) Navigator.pop(ctx);
                 },
                 child: const Text('حفظ'),
@@ -113,14 +112,14 @@ class _ManageNovelsPageState extends State<ManageNovelsPage> {
 // صفحة إدارة صور الرواية (الصفحات)
 // =======================================================
 class ManageNovelImagesPage extends StatefulWidget {
+  final AppData data;
   final Map<String, dynamic> novel;
-  const ManageNovelImagesPage({super.key, required this.novel});
+  const ManageNovelImagesPage({super.key, required this.data, required this.novel});
   @override
   State<ManageNovelImagesPage> createState() => _ManageNovelImagesPageState();
 }
 
 class _ManageNovelImagesPageState extends State<ManageNovelImagesPage> {
-  final AppData _data = AppData();
   List<Map<String, dynamic>> images = [];
   bool loading = true;
 
@@ -131,7 +130,7 @@ class _ManageNovelImagesPageState extends State<ManageNovelImagesPage> {
   }
 
   Future<void> _loadImages() async {
-    final res = await _data.getNovelImages(widget.novel['id']);
+    final res = await widget.data.getNovelImages(widget.novel['id']);
     if (mounted) setState(() { images = res; loading = false; });
   }
 
@@ -140,7 +139,7 @@ class _ManageNovelImagesPageState extends State<ManageNovelImagesPage> {
     if (picked == null) return;
     final file = File(picked.path);
     final pageNumber = images.length + 1;
-    final ok = await _data.addNovelImage(widget.novel['id'], file, pageNumber);
+    final ok = await widget.data.addNovelImage(widget.novel['id'], file, pageNumber);
     if (ok) {
       _loadImages();
       showSnack(context, 'تمت إضافة الصفحة $pageNumber');
@@ -173,7 +172,7 @@ class _ManageNovelImagesPageState extends State<ManageNovelImagesPage> {
                         trailing: IconButton(
                           icon: const Icon(Icons.delete, color: Colors.red),
                           onPressed: () async {
-                            await _data.deleteNovelImage(img['id']);
+                            await widget.data.deleteNovelImage(img['id']);
                             _loadImages();
                           },
                         ),
