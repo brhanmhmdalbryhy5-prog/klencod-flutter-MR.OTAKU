@@ -115,7 +115,7 @@ class _HomePageState extends State<HomePage> {
 }
 
 // =======================================================
-// 2. الرئيسية (مع زر "عن المطور")
+// 2. الرئيسية (مع زر "عن المطور" ومربع الروايات)
 // =======================================================
 class HomeTab extends StatefulWidget {
   final AppData data;
@@ -1237,24 +1237,95 @@ class _CommentsPageState extends State<CommentsPage> {
   }
 }
 
+// =======================================================
+// 11. صفحة الإشعارات المعدلة
+// =======================================================
 class NotificationsPage extends StatelessWidget {
   final AppData data;
   const NotificationsPage({super.key, required this.data});
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(title: const Text('صندوق الوارد'), actions: [if (data.notifications.isNotEmpty) IconButton(onPressed: () => data.markAllNotificationsRead(), icon: const Icon(Icons.done_all))]), body: AnimatedBuilder(animation: data, builder: (context, _) {
-      if (data.notifications.isEmpty) return const Center(child: Text('لا توجد إشعارات'));
-      return ListView.builder(padding: const EdgeInsets.all(12), itemCount: data.notifications.length, itemBuilder: (_, index) {
-        final item = data.notifications[index];
-        final read = data.isNotificationRead(item['id']);
-        return Card(color: read ? AppColors.cardBlack : AppColors.gold.withOpacity(0.1), child: ListTile(
-          leading: Icon(read ? Icons.notifications_none : Icons.notifications_active, color: read ? Colors.grey : AppColors.gold),
-          title: Text(clean(item['title']), style: TextStyle(fontWeight: FontWeight.bold, color: read ? Colors.grey : AppColors.gold)),
-          subtitle: Text(clean(item['body'])),
-          trailing: read ? null : Container(width: 10, height: 10, decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle)),
-          onTap: () => data.markNotificationRead(item['id']),
-        ));
-      });
-    }));
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('صندوق الوارد'),
+        actions: [
+          if (data.notifications.isNotEmpty)
+            IconButton(
+              tooltip: 'تحديد الكل كمقروء',
+              onPressed: () => data.markAllNotificationsRead(),
+              icon: const Icon(Icons.done_all),
+            )
+        ],
+      ),
+      body: AnimatedBuilder(
+        animation: data,
+        builder: (context, _) {
+          if (data.notifications.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.notifications_off, size: 80, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text('لا توجد إشعارات', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                ],
+              ),
+            );
+          }
+          return RefreshIndicator(
+            onRefresh: () => data.loadNotifications(),
+            child: ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: data.notifications.length,
+              itemBuilder: (_, index) {
+                final item = data.notifications[index];
+                final read = data.isNotificationRead(item['id']);
+                
+                IconData icon = Icons.notifications_active;
+                Color iconColor = AppColors.gold;
+                final title = clean(item['title']);
+                if (title.contains('رد')) { icon = Icons.reply; iconColor = Colors.blue; }
+                else if (title.contains('إعجاب')) { icon = Icons.favorite; iconColor = Colors.red; }
+                else if (title.contains('متابعة')) { icon = Icons.person_add; iconColor = Colors.green; }
+                else if (title.contains('متصدر')) { icon = Icons.emoji_events; iconColor = Colors.amber; }
+
+                return Card(
+                  color: read ? AppColors.cardBlack : AppColors.gold.withOpacity(0.1),
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: iconColor.withOpacity(0.2),
+                      child: Icon(icon, color: read ? Colors.grey : iconColor),
+                    ),
+                    title: Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: read ? Colors.grey : AppColors.gold,
+                      ),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        clean(item['body']),
+                        style: TextStyle(color: read ? Colors.grey.shade600 : Colors.white70),
+                      ),
+                    ),
+                    trailing: read
+                        ? null
+                        : Container(
+                            width: 10, height: 10,
+                            decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                          ),
+                    onTap: () => data.markNotificationRead(item['id']),
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
   }
 }
