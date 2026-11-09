@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -11,46 +12,51 @@ import 'data/app_data.dart';
 import 'screens/auth_screen.dart';
 import 'screens/home_screens.dart';
 
-// ✅ كائن الإشعارات المحلية
+// الإشعارات المحلية
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
-const AndroidNotificationChannel highImportanceChannel = AndroidNotificationChannel(
+// قناة الإشعارات المهمة
+const AndroidNotificationChannel highImportanceChannel =
+    AndroidNotificationChannel(
   'high_importance_channel',
   'إشعارات مهمة',
   description: 'إشعارات فورية للمستخدم',
   importance: Importance.max,
   playSound: true,
   enableVibration: true,
+  showBadge: true,
 );
 
 @pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+Future<void> _firebaseMessagingBackgroundHandler(
+    RemoteMessage message) async {
   await Firebase.initializeApp();
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. تهيئة Supabase (ضروري جداً قبل تشغيل التطبيق)
+  // تهيئة Supabase
   await Supabase.initialize(
     url: 'https://sekchgllbimoedsjoumi.supabase.co',
     anonKey: 'sb_publishable_EZLVSUviR39RXi6OP3OqfQ_3j7vMZcU',
   );
 
-  // 2. تهيئة Firebase (داخل try-catch حتى لا يعلق التطبيق إذا فشل)
+  // تهيئة Firebase
   try {
     await Firebase.initializeApp();
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    FirebaseMessaging.onBackgroundMessage(
+      _firebaseMessagingBackgroundHandler,
+    );
   } catch (e) {
     debugPrint('Firebase init error: $e');
   }
 
-  // 3. تهيئة التخزين المحلي والثيم
+  // التخزين والثيم
   await LocalCache.init();
   await ThemeManager.instance.load();
 
-  // 4. تشغيل التطبيق فوراً (بدون انتظار الإشعارات)
   runApp(const MrOtakuApp());
 }
 
@@ -72,56 +78,82 @@ class _MrOtakuAppState extends State<MrOtakuApp> {
     _setupNotifications();
   }
 
-  // ✅ إعداد الإشعارات (يتم في الخلفية ولا يمنع فتح التطبيق)
-  void _setupNotifications() {
-    Future.microtask(() async {
-      try {
-        // تهيئة الإشعارات المحلية
-        const AndroidInitializationSettings initializationSettingsAndroid =
-            AndroidInitializationSettings('@mipmap/ic_launcher');
-        const InitializationSettings initializationSettings =
-            InitializationSettings(android: initializationSettingsAndroid);
-        
-        await flutterLocalNotificationsPlugin.initialize(initializationSettings);
-        await flutterLocalNotificationsPlugin
-            .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>()
-            ?.createNotificationChannel(highImportanceChannel);
+  // إعداد الإشعارات
+  Future<void> _setupNotifications() async {
+    try {
+      // تهيئة الإشعارات المحلية
+      const AndroidInitializationSettings initializationSettingsAndroid =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
 
-        // طلب إذن الإشعارات
-        NotificationSettings settings = await FirebaseMessaging.instance.requestPermission(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
+      const InitializationSettings initializationSettings =
+          InitializationSettings(
+        android: initializationSettingsAndroid,
+      );
 
-        if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-          await FirebaseMessaging.instance.subscribeToTopic('all_users');
-        }
+      await flutterLocalNotificationsPlugin.initialize(
+        initializationSettings,
+      );
 
-        // الاستماع للإشعارات أثناء فتح التطبيق
-        FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-          if (message.notification != null) {
-            flutterLocalNotificationsPlugin.show(
-              message.hashCode,
-              message.notification!.title,
-              message.notification!.body,
-              NotificationDetails(
-                android: AndroidNotificationDetails(
-                  highImportanceChannel.id,
-                  highImportanceChannel.name,
-                  importance: Importance.max,
-                  priority: Priority.high,
-                  icon: '@mipmap/ic_launcher',
-                ),
-              ),
-            );
-          }
-        });
-      } catch (e) {
-        debugPrint('❌ Notification setup error: $e');
+      final androidPlugin =
+          flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+
+      // إنشاء قناة بأهمية قصوى
+      await androidPlugin?.createNotificationChannel(
+        highImportanceChannel,
+      );
+
+      // طلب صلاحية الإشعارات
+      await androidPlugin?.requestNotificationsPermission();
+
+      // طلب صلاحية Firebase
+      final settings =
+          await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      debugPrint(
+        'Notification permission: ${settings.authorizationStatus}',
+      );
+
+      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional) {
+        await FirebaseMessaging.instance.subscribeToTopic('all_users');
       }
-    });
+
+      // إظهار الإشعارات أثناء فتح التطبيق
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+        final notification = message.notification;
+
+        if (notification == null) return;
+
+        await flutterLocalNotificationsPlugin.show(
+          message.hashCode,
+          notification.title ?? 'MR.OTAKU',
+          notification.body ?? '',
+          NotificationDetails(
+            android: AndroidNotificationDetails(
+              highImportanceChannel.id,
+              highImportanceChannel.name,
+              channelDescription: highImportanceChannel.description,
+              importance: Importance.max,
+              priority: Priority.max,
+              playSound: true,
+              enableVibration: true,
+              category: AndroidNotificationCategory.message,
+              visibility: NotificationVisibility.public,
+              icon: '@mipmap/ic_launcher',
+              ticker: 'إشعار جديد من MR.OTAKU',
+            ),
+          ),
+        );
+      });
+
+    } catch (e) {
+      debugPrint('Notification setup error: $e');
+    }
   }
 
   Future<void> start() async {
@@ -145,8 +177,11 @@ class _MrOtakuAppState extends State<MrOtakuApp> {
           // حفظ توكن الهاتف
           if (data.currentAccountId != null) {
             final token = await FirebaseMessaging.instance.getToken();
+
             if (token != null) {
-              await Supabase.instance.client.from('device_tokens').upsert({
+              await Supabase.instance.client
+                  .from('device_tokens')
+                  .upsert({
                 'account_id': data.currentAccountId,
                 'fcm_token': token,
               }, onConflict: 'account_id,fcm_token');
@@ -163,7 +198,8 @@ class _MrOtakuAppState extends State<MrOtakuApp> {
     final primary = ThemeManager.instance.primaryColor;
     final isDark = ThemeManager.instance.isDarkMode;
     final bgColor = isDark ? AppColors.black : Colors.white;
-    final cardColor = isDark ? AppColors.cardBlack : Colors.grey.shade100;
+    final cardColor =
+        isDark ? AppColors.cardBlack : Colors.grey.shade100;
     final textColor = isDark ? Colors.white : Colors.black;
 
     return ThemeData(
@@ -172,31 +208,99 @@ class _MrOtakuAppState extends State<MrOtakuApp> {
       scaffoldBackgroundColor: bgColor,
       cardColor: cardColor,
       colorScheme: isDark
-          ? ColorScheme.dark(primary: primary, onPrimary: Colors.black, secondary: primary, onSecondary: Colors.black, surface: cardColor, onSurface: textColor)
-          : ColorScheme.light(primary: primary, onPrimary: Colors.white, secondary: primary, onSecondary: Colors.white, surface: cardColor, onSurface: textColor),
-      appBarTheme: AppBarTheme(backgroundColor: bgColor, foregroundColor: primary, centerTitle: true, elevation: 0),
+          ? ColorScheme.dark(
+              primary: primary,
+              onPrimary: Colors.black,
+              secondary: primary,
+              onSecondary: Colors.black,
+              surface: cardColor,
+              onSurface: textColor,
+            )
+          : ColorScheme.light(
+              primary: primary,
+              onPrimary: Colors.white,
+              secondary: primary,
+              onSecondary: Colors.white,
+              surface: cardColor,
+              onSurface: textColor,
+            ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: bgColor,
+        foregroundColor: primary,
+        centerTitle: true,
+        elevation: 0,
+      ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: bgColor,
         indicatorColor: primary.withOpacity(0.25),
-        labelTextStyle: MaterialStateProperty.all(TextStyle(color: primary, fontWeight: FontWeight.bold)),
-        iconTheme: MaterialStateProperty.all(IconThemeData(color: primary)),
+        labelTextStyle: MaterialStateProperty.all(
+          TextStyle(
+            color: primary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        iconTheme: MaterialStateProperty.all(
+          IconThemeData(color: primary),
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark ? AppColors.inputBlack : Colors.grey.shade200,
+        fillColor:
+            isDark ? AppColors.inputBlack : Colors.grey.shade200,
         labelStyle: TextStyle(color: primary),
         hintStyle: TextStyle(color: primary.withOpacity(0.5)),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: primary)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: primary.withOpacity(0.4))),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: primary, width: 1.5)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: primary),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: primary.withOpacity(0.4),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: primary, width: 1.5),
+        ),
       ),
-      cardTheme: CardTheme(color: cardColor, elevation: 2, shape: RoundedRectangleBorder(borderRadius: const BorderRadius.all(Radius.circular(18)), side: BorderSide(color: primary.withOpacity(0.4)))),
+      cardTheme: CardTheme(
+        color: cardColor,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: const BorderRadius.all(
+            Radius.circular(18),
+          ),
+          side: BorderSide(
+            color: primary.withOpacity(0.4),
+          ),
+        ),
+      ),
       iconTheme: IconThemeData(color: primary),
-      filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(backgroundColor: primary, foregroundColor: Colors.white)),
-      textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: primary)),
-      outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(foregroundColor: primary, side: BorderSide(color: primary))),
-      floatingActionButtonTheme: FloatingActionButtonThemeData(backgroundColor: primary, foregroundColor: Colors.white),
-      progressIndicatorTheme: ProgressIndicatorThemeData(color: primary),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: primary,
+          foregroundColor: Colors.white,
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: primary,
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: primary,
+          side: BorderSide(color: primary),
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: primary,
+        foregroundColor: Colors.white,
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: primary,
+      ),
     );
   }
 
@@ -206,14 +310,24 @@ class _MrOtakuAppState extends State<MrOtakuApp> {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: theme,
-        home: const Scaffold(body: Center(child: CircularProgressIndicator())),
+        home: const Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
       );
     }
 
     return AnimatedBuilder(
-      animation: Listenable.merge([data, ThemeManager.instance]),
+      animation: Listenable.merge([
+        data,
+        ThemeManager.instance,
+      ]),
       builder: (_, __) {
-        Widget home = !data.hasAccount ? AccountSetupPage(data: data) : HomePage(data: data);
+        Widget home = !data.hasAccount
+            ? AccountSetupPage(data: data)
+            : HomePage(data: data);
+
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'مستر أوتاكو',
